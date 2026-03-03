@@ -43,40 +43,40 @@ graph TD
     classDef component fill:#00b894,stroke:#fff,stroke-width:2px,color:#fff;
     classDef storage fill:#d63031,stroke:#fff,stroke-width:2px,color:#fff,font-weight:bold;
 
-    UserQuery((User Query)):::user -->|HTTP| API_Gateway[FastAPI Gateway]:::core
-    API_Gateway --> QueryClassifier[Query Classifier Agent]:::component
+    UserQuery(("User Query")):::user -->|HTTP| API_Gateway["FastAPI Gateway"]:::core
+    API_Gateway --> QueryClassifier["Query Classifier Agent"]:::component
     
     subgraph "Reasoning Engine"
-        QueryClassifier -- "Simple" --> StandardRAG[Standard RAG Execution]:::component
-        QueryClassifier -- "Complex" --> PlannerAgent[Planner Agent (Llama 70B)]:::component
-        PlannerAgent -->|Decomposed Plan| Orchestrator[Multi-Hop Orchestrator]:::component
+        QueryClassifier -- Simple --> StandardRAG["Standard RAG Execution"]:::component
+        QueryClassifier -- Complex --> PlannerAgent["Planner Agent (Llama 70B)"]:::component
+        PlannerAgent -->|Decomposed Plan| Orchestrator["Multi-Hop Orchestrator"]:::component
         
-        Orchestrator --> HybridRetrieval1[Hybrid Search Path A]:::component
-        Orchestrator --> HybridRetrieval2[Hybrid Search Path B]:::component
+        Orchestrator --> HybridRetrieval1["Hybrid Search Path A"]:::component
+        Orchestrator --> HybridRetrieval2["Hybrid Search Path B"]:::component
         
-        HybridRetrieval1 --> RRF_Fusion[Reciprocal Rank Fusion]:::component
+        HybridRetrieval1 --> RRF_Fusion["Reciprocal Rank Fusion"]:::component
         HybridRetrieval2 --> RRF_Fusion
         
-        RRF_Fusion -->|Top 50 Chunks| Reranker[NVIDIA Reranker]:::component
-        Reranker -->|Top 5 Chunks| ContextCompressor[Context Compressor]:::component
-        ContextCompressor --> SynthesisEngine[Synthesis Engine]:::core
+        RRF_Fusion -->|Top 50 Chunks| Reranker["NVIDIA Reranker"]:::component
+        Reranker -->|Top 5 Chunks| ContextCompressor["Context Compressor"]:::component
+        ContextCompressor --> SynthesisEngine["Synthesis Engine"]:::core
     end
     
     subgraph "Knowledge Base"
-        PDF_Upload[(Raw Documents)]:::storage --> DoclingParser[Docling Parser]:::component
-        DoclingParser --> ContentRouter[Content Router]:::component
+        PDF_Upload[("Raw Documents")]:::storage --> DoclingParser["Docling Parser"]:::component
+        DoclingParser --> ContentRouter["Content Router"]:::component
         
-        ContentRouter -- Tables --> TableCanonicalizer[Table Canonicalizer]:::component
-        ContentRouter -- Charts --> ChartAnalyzer[VLM Chart Analysis]:::component
-        ContentRouter -- Text --> SemanticChunker[Hierarchical Chunker]:::component
+        ContentRouter -- Tables --> TableCanonicalizer["Table Canonicalizer"]:::component
+        ContentRouter -- Charts --> ChartAnalyzer["VLM Chart Analysis"]:::component
+        ContentRouter -- Text --> SemanticChunker["Hierarchical Chunker"]:::component
         
-        TableCanonicalizer & ChartAnalyzer & SemanticChunker --> Qdrant[(Qdrant Vector DB)]:::storage
+        TableCanonicalizer & ChartAnalyzer & SemanticChunker --> Qdrant[("Qdrant Vector DB")]:::storage
     end
     
     Qdrant -.-> HybridRetrieval1
     Qdrant -.-> HybridRetrieval2
     
-    SynthesisEngine --> FinalResponse((Final Response)):::user
+    SynthesisEngine --> FinalResponse(("Final Response")):::user
 ```
 
 ---
