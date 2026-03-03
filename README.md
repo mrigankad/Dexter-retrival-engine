@@ -2,6 +2,8 @@
 
 # 🚀 Context RAG (Dexter Retrieval Agent)
 
+<img src="./assets/images/mascot.png" alt="Dexter Mascot" width="200"/>
+
 **An Enterprise-Grade, Multi-Agent Retrieval Augmented Generation System**
 <br>
 Powered by **NVIDIA NIM APIs**, **FastAPI**, and **Qdrant**
