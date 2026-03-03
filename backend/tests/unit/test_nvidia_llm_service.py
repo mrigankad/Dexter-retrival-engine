@@ -5,7 +5,7 @@ Unit tests for NVIDIA LLM Service.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from services.nvidia_llm_service import NvidiaLLMService
+from src.services.nvidia_llm_service import NvidiaLLMService
 
 
 class TestNvidiaLLMService:

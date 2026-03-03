@@ -1,5 +1,5 @@
 # ============================================
-# NVIDIA NIM RAG Backend - Docker Compose
+# Dexter Retrieval Agent - Docker Compose
 # ============================================
 
 services:
@@ -8,13 +8,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: rag-frontend
+    container_name: dexter-frontend
     ports:
       - "3000:80"
     depends_on:
       - api
     networks:
-      - rag-network
+      - dexter-network
     restart: unless-stopped
   # ==========================================
   # FastAPI Backend API
@@ -23,11 +23,11 @@ services:
     build:
       context: .
       dockerfile: docker/api/Dockerfile
-    container_name: rag-api
+    container_name: dexter-api
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
-      - APP_NAME=${APP_NAME:-rag-backend}
+      - APP_NAME=${APP_NAME:-dexter-backend}
       - APP_ENV=${APP_ENV:-development}
       - DEBUG=${DEBUG:-true}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -94,7 +94,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - rag-network
+      - dexter-network
     restart: unless-stopped
 
   # ==========================================
@@ -104,9 +104,9 @@ services:
     build:
       context: .
       dockerfile: docker/ingestion/Dockerfile
-    container_name: rag-ingestion-worker
+    container_name: dexter-ingestion-worker
     environment:
-      - APP_NAME=${APP_NAME:-rag-backend}
+      - APP_NAME=${APP_NAME:-dexter-backend}
       - APP_ENV=${APP_ENV:-development}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # NVIDIA Configuration (MUST match API service models)
@@ -156,7 +156,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - rag-network
+      - dexter-network
     restart: unless-stopped
 
   # ==========================================
@@ -164,7 +164,7 @@ services:
   # ==========================================
   postgres:
     image: postgres:16-alpine
-    container_name: rag-postgres
+    container_name: dexter-postgres
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-ragdb}
       - POSTGRES_USER=${POSTGRES_USER:-raguser}
@@ -175,7 +175,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     networks:
-      - rag-network
+      - dexter-network
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}" ]
@@ -189,7 +189,7 @@ services:
   # ==========================================
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: rag-qdrant
+    container_name: dexter-qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -198,7 +198,7 @@ services:
     environment:
       - QDRANT__LOG_LEVEL=INFO
     networks:
-      - rag-network
+      - dexter-network
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/6333' || exit 1" ]
@@ -212,14 +212,14 @@ services:
   # ==========================================
   redis:
     image: redis:7-alpine
-    container_name: rag-redis
+    container_name: dexter-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
     networks:
-      - rag-network
+      - dexter-network
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
@@ -233,7 +233,7 @@ services:
   # ==========================================
   neo4j:
     image: neo4j:latest
-    container_name: rag-neo4j
+    container_name: dexter-neo4j
     ports:
       - "7474:7474" # HTTP
       - "7687:7687" # Bolt
@@ -247,7 +247,7 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
     networks:
-      - rag-network
+      - dexter-network
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/7687' || exit 1" ]
@@ -261,7 +261,7 @@ services:
   # ==========================================
   minio:
     image: minio/minio:latest
-    container_name: rag-minio
+    container_name: dexter-minio
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -272,7 +272,7 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     networks:
-      - rag-network
+      - dexter-network
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "mc", "ready", "local" ]
@@ -285,25 +285,25 @@ services:
 # Networks
 # ==========================================
 networks:
-  rag-network:
+  dexter-network:
     driver: bridge
-    name: rag-network
+    name: dexter-network
 
 # ==========================================
 # Volumes
 # ==========================================
 volumes:
   postgres_data:
-    name: rag-postgres-data
+    name: dexter-postgres-data
   qdrant_data:
-    name: rag-qdrant-data
+    name: dexter-qdrant-data
   redis_data:
-    name: rag-redis-data
+    name: dexter-redis-data
   upload_data:
-    name: rag-upload-data
+    name: dexter-upload-data
   neo4j_data:
-    name: rag-neo4j-data
+    name: dexter-neo4j-data
   neo4j_logs:
-    name: rag-neo4j-logs
+    name: dexter-neo4j-logs
   minio_data:
-    name: rag-minio-data
+    name: dexter-minio-data

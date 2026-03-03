@@ -1,6 +1,6 @@
-# 🚀 NVIDIA NIM Powered RAG Backend
+# 🚀 Dexter Retrieval Agent
 
-A production-ready, fully Dockerized **Retrieval Augmented Generation (RAG)** backend system powered by **NVIDIA NIM APIs**.
+A production-ready, enterprise-grade **Retrieval Augmented Generation (RAG)** system powered by **NVIDIA NIM APIs**.
 
 ## 🏗️ Architecture
 

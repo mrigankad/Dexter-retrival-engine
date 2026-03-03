@@ -1,12 +1,12 @@
 # ============================================
-# NVIDIA NIM RAG Backend - Makefile
+# Dexter Retrieval Agent - Makefile
 # ============================================
 
 .PHONY: help build up down logs test clean dev
 
 # Default target
 help:
-	@echo "NVIDIA NIM RAG Backend - Available Commands"
+	@echo "Dexter Retrieval Agent - Available Commands"
 	@echo "============================================"
 	@echo ""
 	@echo "Docker Commands:"

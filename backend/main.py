@@ -9,10 +9,12 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from core.config import settings
-from core.logger import setup_logging, get_logger, generate_request_id, set_request_context, clear_request_context
-from core.dependency_injection import close_redis
-from db.session_manager import init_db
+from src.core.config import settings
+from src.core.logger import setup_logging, get_logger, generate_request_id, set_request_context, clear_request_context
+from src.core.dependency_injection import close_redis
+from src.infrastructure.database.session_manager import init_db
+from src.agents.communication import AgentCommunicationBus
+from src.agents.base import ExecutionEngine
 
 # Initialize logging
 setup_logging(log_level=settings.log_level, json_logs=settings.is_production)
@@ -24,14 +26,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     logger.info("Starting application", app_name=settings.app_name, environment=settings.app_env)
     await init_db()
+    # Agent infrastructure
+    app.state.communication_bus = AgentCommunicationBus()
+    app.state.execution_engine  = ExecutionEngine(max_retries=3, timeout=300)
+    logger.info("Agent infrastructure initialised")
     yield
     logger.info("Shutting down application")
     await close_redis()
 
 
 app = FastAPI(
-    title="NVIDIA NIM RAG Backend",
-    description="Production-ready RAG backend powered by NVIDIA NIM APIs",
+    title="Dexter Retrieval Agent",
+    description="Enterprise-grade Retrieval Augmented Generation system powered by NVIDIA NIM",
     version="1.0.0",
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
@@ -90,12 +96,13 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # Import and register routers
-from api.health_routes import router as health_router
-from api.auth_routes import router as auth_router
-from api.chat_routes import router as chat_router
-from api.ingestion_routes import router as ingestion_router
-from api.report_routes import router as report_router
-from api.evaluation_routes import router as evaluation_router
+from src.api.v1.health_routes import router as health_router
+from src.api.v1.auth_routes import router as auth_router
+from src.api.v1.chat_routes import router as chat_router
+from src.api.v1.ingestion_routes import router as ingestion_router
+from src.api.v1.report_routes import router as report_router
+from src.api.v1.evaluation_routes import router as evaluation_router
+from src.api.v1.agents_routes import router as agents_router
 
 app.include_router(health_router, prefix="", tags=["Health"])
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
@@ -103,6 +110,7 @@ app.include_router(chat_router, prefix="/chat", tags=["Chat"])
 app.include_router(ingestion_router, prefix="", tags=["Ingestion"])
 app.include_router(report_router, prefix="", tags=["Reports"])
 app.include_router(evaluation_router, prefix="/evaluations", tags=["Evaluation"])
+app.include_router(agents_router, tags=["Multi-Agent RAG System"])
 
 
 @app.get("/", include_in_schema=False)

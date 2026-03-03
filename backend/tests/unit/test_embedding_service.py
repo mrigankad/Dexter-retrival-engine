@@ -5,7 +5,7 @@ Unit tests for Embedding Service.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from services.embedding_service import EmbeddingService
+from src.services.embedding_service import EmbeddingService
 
 
 class TestEmbeddingService:
