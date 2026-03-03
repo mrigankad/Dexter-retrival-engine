@@ -1,241 +1,187 @@
-# 🚀 Dexter Retrieval Agent
+<div align="center">
 
-A production-ready, enterprise-grade **Retrieval Augmented Generation (RAG)** system powered by **NVIDIA NIM APIs**.
+# 🚀 Context RAG (Dexter Retrieval Agent)
 
-## 🏗️ Architecture
+**An Enterprise-Grade, Multi-Agent Retrieval Augmented Generation System**
+<br>
+Powered by **NVIDIA NIM APIs**, **FastAPI**, and **Qdrant**
 
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://python.org)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)](https://docker.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+</div>
+
+---
+
+## 📖 Overview
+
+Context RAG is a sophisticated, production-ready RAG platform designed to answer complex domain-specific analytical queries from large, dense documents (400+ pages). It has evolved from standard RAG to a **Planner-Driven Multi-Hop Retrieval** system featuring **Advanced Multimodal Ingestion**. 
+
+### ✨ Core Features
+
+- 🧠 **Agentic Reasoning Orchestration**: Multi-hop query execution and query planning via Llama 3.1 70B Architect agents.
+- 📄 **Multimodal Document Processing**: Extracts and understands PDFs, DOCX, Tables, and Charts (powered by Docling & LLaVA).
+- 🔍 **Hybrid Vector Search**: Qdrant-powered dense (NV-EmbedQA) + sparse (Splade/BM25) search with Reciprocal Rank Fusion & NVIDIA Mistral Reranking.
+- 💬 **Streaming Telemetry**: Real-time Server-Sent Events (SSE) with Langfuse observability.
+- 🔐 **Enterprise Security**: JWT Authentication, Rate Limiting, and Role-Based Access controls ready.
+- 🐳 **Seamless Deployment**: Fully Dockerized, one-click `docker compose up` setup.
+
+---
+
+## 🏗️ Architecture Design
+
+The system is designed with a multi-layered reasoning engine and high-throughput ingestion pipeline.
+
+```mermaid
+graph TD
+    %% Define Styles
+    classDef user fill:#6c5ce7,stroke:#fff,stroke-width:2px,color:#fff,font-weight:bold;
+    classDef core fill:#0984e3,stroke:#fff,stroke-width:2px,color:#fff,font-weight:bold;
+    classDef component fill:#00b894,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef storage fill:#d63031,stroke:#fff,stroke-width:2px,color:#fff,font-weight:bold;
+
+    UserQuery((User Query)):::user -->|HTTP| API_Gateway[FastAPI Gateway]:::core
+    API_Gateway --> QueryClassifier[Query Classifier Agent]:::component
+    
+    subgraph "Reasoning Engine"
+        QueryClassifier -- "Simple" --> StandardRAG[Standard RAG Execution]:::component
+        QueryClassifier -- "Complex" --> PlannerAgent[Planner Agent (Llama 70B)]:::component
+        PlannerAgent -->|Decomposed Plan| Orchestrator[Multi-Hop Orchestrator]:::component
+        
+        Orchestrator --> HybridRetrieval1[Hybrid Search Path A]:::component
+        Orchestrator --> HybridRetrieval2[Hybrid Search Path B]:::component
+        
+        HybridRetrieval1 --> RRF_Fusion[Reciprocal Rank Fusion]:::component
+        HybridRetrieval2 --> RRF_Fusion
+        
+        RRF_Fusion -->|Top 50 Chunks| Reranker[NVIDIA Reranker]:::component
+        Reranker -->|Top 5 Chunks| ContextCompressor[Context Compressor]:::component
+        ContextCompressor --> SynthesisEngine[Synthesis Engine]:::core
+    end
+    
+    subgraph "Knowledge Base"
+        PDF_Upload[(Raw Documents)]:::storage --> DoclingParser[Docling Parser]:::component
+        DoclingParser --> ContentRouter[Content Router]:::component
+        
+        ContentRouter -- Tables --> TableCanonicalizer[Table Canonicalizer]:::component
+        ContentRouter -- Charts --> ChartAnalyzer[VLM Chart Analysis]:::component
+        ContentRouter -- Text --> SemanticChunker[Hierarchical Chunker]:::component
+        
+        TableCanonicalizer & ChartAnalyzer & SemanticChunker --> Qdrant[(Qdrant Vector DB)]:::storage
+    end
+    
+    Qdrant -.-> HybridRetrieval1
+    Qdrant -.-> HybridRetrieval2
+    
+    SynthesisEngine --> FinalResponse((Final Response)):::user
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Docker Network                           │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌─────────┐           │
-│  │ FastAPI │  │ Qdrant  │  │PostgreSQL│  │  Redis  │           │
-│  │   API   │◄─┤ Vectors │  │   Chat   │  │  Cache  │           │
-│  └────┬────┘  └─────────┘  └──────────┘  └─────────┘           │
-│       │       ┌──────────────┐                                  │
-│       └──────►│  Ingestion   │                                  │
-│               │    Worker    │                                  │
-│               └──────────────┘                                  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │   NVIDIA NIM    │
-                    │  - LLM API      │
-                    │  - Embeddings   │
-                    │  - Reranking    │
-                    └─────────────────┘
-```
 
-## ✨ Features
+---
 
-- 🤖 **Multi-Pipeline Routing** - Intelligent query classification (RAG/Direct LLM/Tools)
-- 📄 **Document Ingestion** - PDF, DOCX, TXT support with semantic chunking
-- 🔍 **Vector Search** - Qdrant-powered similarity search with reranking
-- 💬 **Streaming Chat** - Server-Sent Events (SSE) for real-time responses
-- 🔐 **JWT Authentication** - Secure API access with rate limiting
-- 📊 **Observability** - Structured JSON logging with request tracing
-- 🐳 **Fully Dockerized** - Single command deployment
-
-## 🚀 Quick Start
+## 🚀 Quick Start (Dockerized)
 
 ### Prerequisites
-
 - Docker & Docker Compose
-- NVIDIA API Key (get one at [build.nvidia.com](https://build.nvidia.com))
+- **NVIDIA API Key** (Create an account at [build.nvidia.com](https://build.nvidia.com))
 
-### 1. Clone & Configure
+### Installation
 
+**1. Clone the Repository & Configure Environment**
 ```bash
-# Clone the repository
-cd RAG-POC
+git clone https://github.com/mrigankad/context-rag.git
+cd context-rag
 
 # Copy environment template
 cp .env.example .env
 
-# Edit .env and add your NVIDIA API key
-# NVIDIA_API_KEY=nvapi-xxx
+# Edit .env and append your credentials
+# NVIDIA_API_KEY=nvapi-xxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-### 2. Start Services
-
+**2. Start the Stack**
 ```bash
-# Build and start all services
-docker compose up -d
-
-# Or use the Makefile
 make init
+# Or manually: docker compose up -d
 ```
 
-### 3. Verify
-
+**3. Verify Services**
 ```bash
-# Check service status
-docker compose ps
-
-# View logs
-docker compose logs -f api
-
-# Health check
+# Check service health
 curl http://localhost:8000/health
+
+# View API documentation (Swagger UI)
+# Open http://localhost:8000/docs in your browser
 ```
 
-## 📡 API Endpoints
+---
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check with service status |
-| `/chat` | POST | Chat with streaming support |
-| `/ingest` | POST | Upload and ingest documents |
-| `/documents` | GET | List ingested documents |
-| `/auth/login` | POST | Authenticate and get JWT token |
+## 📈 Roadmap & Progress tracker
 
-### Chat Example
+The project is structured across 4 distinct phases, moving from stability, to multi-agent capabilities, and finally to highly scaled multi-tenant clusters.
 
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "What is machine learning?",
-    "stream": false,
-    "use_rag": true
-  }'
+| Phase | Category | Goal / Feature | Status | Priority |
+|:---:|---|---|:---:|:---:|
+| **Phase 1** | **Performance** | Vector Query & Database Pool Optimization (<3s Latency)| 🔄 In Progress | 🔴 High |
+| **Phase 1** | **Telemetry** | Prometheus & Grafana System Dashboards | ⏳ Planned | 🟡 Medium |
+| **Phase 1** | **Quality** | Unit, Integration, & Latency Benchmark Tests (75% Coverage)| 🔄 In Progress | 🔴 High |
+| **Phase 2** | **Reasoning** | Deep Agentic Reasoning (Thought-Action loop, Follow-ups) | ⏳ Planned | 🔴 High |
+| **Phase 2** | **Ingestion** | Advanced Table Preservation & Visual Graph Mapping | ⏳ Planned | 🟡 Medium |
+| **Phase 2** | **Verification** | Entailment checking & Hallucination detection | ⏳ Planned | 🔴 High |
+| **Phase 3** | **Scaling** | K8s Horizontal Pod Autoscaling (HPA) & Qdrant Sharding | ⏳ Planned | 🔴 High |
+| **Phase 3** | **Data** | Incremental Indexing (Diff detection without full re-processing) | ⏳ Planned | 🟡 Medium |
+| **Phase 4** | **Enterprise** | Multi-Tenancy (Row-level Security, DB logical separation) | ⏳ Planned | 🔴 High |
+| **Phase 4** | **Finetuning** | Domain-Specific Custom Re-rankers & Embeddings | ⏳ Planned | 🟢 Low |
+
+---
+
+## ⚙️ Core Configuration 
+
+Key environment variables in your `.env` file:
+
+| Variable | Default Value | Description |
+|----------|---------------|-------------|
+| `NVIDIA_API_KEY` | *(Required)* | Grants access to NIM inference scaling. |
+| `NVIDIA_LLM_MODEL` | `meta/llama-3.1-70b-instruct` | Primary LLM for Synthesis & Planning. |
+| `NVIDIA_EMBED_MODEL`| `nvidia/nv-embedqa-e5-v5` | Dense Embedding Model (1024 dims). |
+| `CHUNK_SIZE` | `512` | Token length per semantic chunk. |
+| `TOP_K_RETRIEVAL` | `5` | Final chunk count returned after reranking. |
+
+---
+
+## 📁 Repository Structure
+
+```tree
+Context RAG/
+├── backend/               # FastAPI Backend Application
+│   ├── api/               # API Routes & Controllers
+│   ├── core/              # Security, Logging, and App Config
+│   ├── ingestion/         # Docling Parsers & Multi-Modal Extractors
+│   ├── workflow/          # Multi-Hop Exec, Langchain Orchestration
+│   └── main.py            # App Entrypoint
+├── frontend/              # React UI Dashboard
+├── docker/                # Isolated Dockerfiles for Build Targets
+├── docs/                  # Architecture, Feature Designs, Specifications
+├── scripts/               # CI/CD and DB migration utilities
+├── docker-compose.yml     # Local orchestration map
+├── Makefile               # Task runner
+└── README.md              # You are here
 ```
 
-### Document Ingestion
+---
 
-```bash
-curl -X POST http://localhost:8000/ingest \
-  -H "Authorization: Bearer <token>" \
-  -F "file=@document.pdf"
-```
+## 🔐 Security & Safety
+- **Traffic Safety**: NeMo Guardrails enabled for Input/Output sanitization.
+- **Authentication**: Stateless, Redis-backed JWTs with route-level Access Control.
 
-## 🧪 Testing
-
-```bash
-# Run all tests
-make test
-
-# Run unit tests only
-make test-unit
-
-# Run integration tests
-make test-integration
-```
-
-## 📁 Project Structure
-
-```
-RAG-POC/
-├── backend/
-│   ├── api/               # FastAPI routes
-│   ├── core/              # Config, logging, security
-│   ├── workflow/          # Orchestrator, RAG pipeline
-│   ├── services/          # NVIDIA, vector store, retrieval
-│   ├── ingestion/         # Document processing
-│   ├── db/                # Database models
-│   ├── schemas/           # Pydantic models
-│   ├── utils/             # Utilities
-│   ├── tests/             # Test suite
-│   └── main.py            # App entry point
-├── docker/
-│   ├── api/Dockerfile
-│   └── ingestion/Dockerfile
-├── scripts/
-│   └── init_db.sql
-├── docker-compose.yml
-├── Makefile
-└── README.md
-```
-
-## ⚙️ Configuration
-
-All configuration is via environment variables. See `.env.example` for all options.
-
-### Key Settings
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NVIDIA_API_KEY` | Your NVIDIA API key | Required |
-| `NVIDIA_LLM_MODEL` | LLM model to use | `meta/llama-3.1-70b-instruct` |
-| `NVIDIA_EMBED_MODEL` | Embedding model | `nvidia/nv-embedqa-e5-v5` |
-| `CHUNK_SIZE` | Document chunk size | `512` |
-| `TOP_K_RETRIEVAL` | Number of chunks to retrieve | `5` |
-
-## 🔧 Development
-
-### Local Development
-
-```bash
-# Install dependencies
-cd backend
-pip install -r requirements.txt
-
-# Run locally (requires services running)
-python -m uvicorn main:app --reload
-```
-
-### API Documentation
-
-When running in development mode, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## 🐳 Docker Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| `api` | 8000 | FastAPI backend |
-| `qdrant` | 6333-6334 | Vector database |
-| `postgres` | 5432 | PostgreSQL database |
-| `redis` | 6379 | Cache & rate limiting |
-| `ingestion-worker` | - | Background document processor |
-
-## 📊 Monitoring
-
-### Logs
-
-```bash
-# All services
-docker compose logs -f
-
-# Specific service
-docker compose logs -f api
-```
-
-### Health Check
-
-```bash
-curl http://localhost:8000/health
-```
-
-## 🔐 Security
-
-- JWT-based authentication
-- Rate limiting via Redis
-- API key stored securely in environment
-- Non-root Docker containers
-
-## 🚀 Production Deployment
-
-1. Update `.env` with production values
-2. Set `APP_ENV=production` and `DEBUG=false`
-3. Use strong `JWT_SECRET_KEY`
-4. Configure proper CORS origins
-5. Set up monitoring and alerting
-
-```bash
-make prod-build
-make prod-up
-```
+## 🤝 Contributing
+Contributions are welcome! Please ensure you check the `docs/` directory for Architectural guidelines before opening PRs. 
 
 ## 📝 License
+This project is licensed under the **MIT License**.
 
-MIT License
-
-## 🙏 Acknowledgments
-
-- [NVIDIA NIM](https://build.nvidia.com) - LLM, Embeddings, Reranking APIs
-- [FastAPI](https://fastapi.tiangolo.com) - Modern Python web framework
-- [Qdrant](https://qdrant.tech) - Vector search engine
-- [LlamaIndex](https://llamaindex.ai) - RAG framework
+<div align="center">
+<i>Built with ❤️ using NVIDIA NIMs</i>
+</div>
