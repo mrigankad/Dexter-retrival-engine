@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🚀 Context RAG (Dexter Retrieval Agent)
-
 <img src="./assets/images/mascot.png" alt="Dexter Mascot" width="200"/>
+
+# 🚀 DexterRA
 
 **An Enterprise-Grade, Multi-Agent Retrieval Augmented Generation System**
 <br>
@@ -21,25 +21,40 @@ Powered by **NVIDIA NIM APIs**, **FastAPI**, and **Qdrant**
 
 ## 📖 Overview
 
-Context RAG is a sophisticated, production-ready AI platform designed to answer complex domain-specific analytical queries from large, dense documents (400+ pages). It has evolved from standard RAG to a **Planner-Driven Multi-Hop Retrieval** system featuring **Advanced Multimodal Ingestion** and a highly extensible **Multi-Agent Orchestration Framework**. 
+**DexterRA** is a sophisticated, production-ready AI platform designed to answer complex domain-specific analytical queries from massive, dense documents (400+ pages). It goes beyond traditional RAG models by functioning as a **Planner-Driven Multi-Hop Retrieval** system. 
 
-Whether you need to parse financial tables, analyze legal contracts, or extract medical insights, Context RAG dynamically loads expert personas and coordinates their reasoning to synthesize an accurate, highly-cited answer.
-
-### ✨ Core Capabilities
-
-- � **Dynamic Multi-Agent Orchestration**: Queries aren't just embedded and searched. They are routed to a Coordinator Agent that plans execution steps across specialized sub-agents (Search, Analysis, Verification, and Synthesis).
-- 🎭 **50+ Specialized Personas**: Through the `DynamicExpertAgent` framework, the system can dynamically adopt any of 50+ expert personas (e.g., SEO Marketer, Legal Expert, DevOps Engineer) defined in Markdown YAML templates.
-- 📄 **Multimodal Document Processing**: Uses Docling and LLaVA to extract and understand PDFs, DOCX, complex Tables, and Charts natively.
-- 🔍 **Hybrid Vector Search**: Qdrant-powered dense (NV-EmbedQA) + sparse (Splade/BM25) search with Reciprocal Rank Fusion & NVIDIA Mistral Reranking.
-- 💬 **Streaming Telemetry**: Real-time Server-Sent Events (SSE) chat with Langfuse observability.
-- 🔐 **Enterprise Security**: JWT Authentication, Rate Limiting, RBAC ready, and NeMo Guardrails for LLM safety.
-- 🐳 **Seamless Deployment**: Fully Dockerized with `docker-compose`.
+With its highly extensible **Multi-Agent Orchestration Framework**, DexterRA doesn't just statically search for text. It thinks, breaks down questions, loads the appropriate expert persona (whether a Financial Analyst, Legal Reviewer, or a software engineer), and dynamically coordinates steps across multiple agents to verify, synthesize, and cite an enterprise-grade response.
 
 ---
 
-## 🏗️ System Architecture
+## 🛠️ How It Works
 
-Context RAG utilizes a multi-layered reasoning engine alongside a high-throughput data ingestion pipeline.
+DexterRA behaves like a highly coordinated corporate task-force. When a complex query is submitted, the system goes through these steps:
+
+1. **Intent Analysis & Planning**: The `Coordinator Agent` classifies the query. For complex questions, a 70B parameter Llama-3.1 model writes an execution "plan"—decomposing the big question into several smaller, actionable tasks.
+2. **Specialized Agent Routing**: The Coordinator tasks specialized agents. For example:
+   * 🔍 **Search Agent**: Navigates the vector database using hybrid search (Dense + Sparse).
+   * 📊 **Analysis Agent**: Extracts numbers and statistical trends from the retrieved context.
+   * 👔 **Dynamic Domain Experts**: Based on the query, it spins up any of **50+ custom personas** (like an HR Representative or SEO Marketer).
+3. **Verification**: A dedicated `Verification Agent` fact-checks the claims, ensures source attribution, and drops insights that fail the hallucination check. 
+4. **Synthesis**: The `Synthesis Engine` takes all validated data from the previous steps, generates the final comprehensive answer, explicitly cites its sources from the ingested documents, and streams the answer back to the user via Server-Sent Events (SSE).
+
+---
+
+## ✨ Core Features & Capabilities
+
+- 🤖 **Agentic Reasoning Orchestration**: Dynamic Multi-hop query execution loops (Thought-Action-Observation) driven by LLM Planner sub-agents. 
+- 🎭 **Infinite Personality Emulation**: Through the `DynamicExpertAgent` framework, the system will dynamically parse 50+ detailed `.md` prompt templates to forcefully adopt industry personas and adapt its analysis.
+- 📄 **Multimodal Document Processing**: Extracts and understands text from native PDFs and DOCX files. Using `Docling` and `LLaVA`, it goes a step further by canonicalizing complex tables and producing VLM summaries of embedded charts/images.
+- 🔍 **Hybrid Vector Search Architecture**: High-speed nearest-neighbor retrieval powered by Qdrant. It fuses Deep Learning Embeddings (`NV-EmbedQA`) with sparse keyword matching (`Splade`/BM25) using **Reciprocal Rank Fusion**.
+- 💬 **NVIDIA Mistral Reranking**: The top 20 fuzzy results are re-evaluated and accurately reranked by a proprietary NVIDIA reranking model to pull the absolute top 5 contextual chunks.
+- � **Streaming Telemetry**: Real-time Server-Sent Events (SSE) chat API combined with full backend observability (designed to hook into Langfuse and Prometheus).
+- 🔐 **Enterprise Security**: Production-proven patterns including stateless JWT Authentication via Redis, configurable API Rate Limiting, RBAC infrastructure ready, and NeMo Guardrails preventing prompt-injection logic.
+- 🐳 **Seamless Deployment**: Fully Dockerized environments capable of scaling.
+
+---
+
+## 🏗️ System Architecture Flow
 
 ```mermaid
 graph TD
@@ -126,7 +141,7 @@ curl http://localhost:8000/health
 # http://localhost:8000/docs
 ```
 
-To run the frontend dashboard:
+To run the frontend dashboard locally:
 ```bash
 cd frontend
 npm install
@@ -135,43 +150,43 @@ npm run dev
 
 ---
 
-## � Tech Stack
+## 💻 Tech Stack
 
-- **Backend**: Python 3.11+, FastAPI (Async), Uvicorn
-- **AI/LLM**: NVIDIA NIM APIs (Llama 3.1 70B for Planning, NV-EmbedQA for Embeddings, Mistral for Reranking)
-- **Databases**: PostgreSQL (Metadata/Auth), Qdrant (Vector Store), Redis (Caching/Rate Limiting)
-- **Frontend**: React 18, TypeScript, TailwindCSS 4, Zustand
-- **Document Extractors**: Docling, LLaVA, python-docx
+- **Backend Architecture**: Python 3.11+, FastAPI (Async), Uvicorn Server
+- **AI/LLM Engine**: NVIDIA NIM APIs (Llama 3.1 70B for Planning, NV-EmbedQA for Embeddings, Mistral for Reranking)
+- **Deep Database Storage**: PostgreSQL (Metadata/Auth), Qdrant (Vector Store), Redis (Caching/Rate Limiting)
+- **Interactive UI**: React 18, TypeScript, TailwindCSS 4, Zustand
+- **Document Exporters**: Docling, LLaVA, python-docx
 
 ---
 
-## 📁 Repository Structure
+## 📁 Complete Repository Structure
 
 ```tree
-Context RAG/
+DexterRA/
 ├── backend/               # Main Python Backend Application
 │   ├── api/               # FastAPI Route Handlers (Auth, Chat, Ingestion)
-│   ├── core/              # Config, Telemetry, and Security
+│   ├── core/              # Config, Telemetry, and Security Middlewares
 │   ├── db/                # PostgreSQL Models & Connection pooling
 │   ├── ingestion/         # Document Parsers, Semantic Chunkers, Visual Extractors
 │   ├── services/          # Retrieval, Embedding, Reranking Logic
 │   ├── workflow/          # RAG Pipeline Orchestrator
-│   └── src/agents/        # Multi-Agent Framework
-│       ├── base/          # Base Agent Classes & Memory
+│   └── src/agents/        # Multi-Agent Framework Core
+│       ├── base/          # Base Agent Classes & Memory logic
 │       ├── domain/        # Hardcoded Experts & DynamicExpertAgent loader
 │       ├── prompts/       # 50+ Markdown YAML persona definitions
-│       └── coordinator/   # Agent routing and execution logic
-├── frontend/              # React TypeScript UI Dashboard
+│       └── coordinator/   # Master agent routing and execution code
+├── frontend/              # Fast, responsive React TypeScript UI Dashboard
 ├── docker/                # Isolated Dockerfiles for Build Targets
-├── docs/                  # In-depth Architecture, Features, & Plans (Moved here for cleanliness)
+├── docs/                  # In-depth Architecture, Features, & Development Plans
 ├── scripts/               # CI/CD and DB migration utilities 
-├── docker-compose.yml     # Local orchestration map
+├── docker-compose.yml     # Local environment orchestration map
 └── Makefile               # Task runner instructions
 ```
 
 ---
 
-## ⚙️ Core Configuration 
+## ⚙️ Core Configuration Options
 
 Key environment variables in your `.env` file:
 
@@ -185,7 +200,7 @@ Key environment variables in your `.env` file:
 
 ---
 
-## � Roadmap & Progress tracker
+## 📈 Roadmap & Progress Matrix
 
 This project operates on a 4-phase structured rollout:
 
@@ -201,11 +216,6 @@ This project operates on a 4-phase structured rollout:
 | **Phase 4** | **Enterprise** | Multi-Tenancy (Row-level Security, DB logical separation) | ⏳ Planned | 🔴 High |
 
 ---
-
-## 🔐 Security & Operations
-- **Traffic Safety**: NeMo Guardrails integrated to catch and sanitize bad LLM logic.
-- **Authentication**: JWT based Access Control handled via Redis state tracking.
-- **Observability**: Designed to easily hook into Prometheus, Grafana, and Langfuse for production system traces.
 
 ## 🤝 Contributing
 Contributions are welcome! Please ensure you check the `docs/` directory for Architectural guidelines, particularly `CODEBASE_OVERVIEW.md` and `MULTI_AGENT_ARCHITECTURE.md`, before taking on large refactors. 
