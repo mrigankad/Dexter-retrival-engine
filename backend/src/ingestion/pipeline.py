@@ -185,9 +185,12 @@ class IngestionPipeline:
                 values["error_message"] = error[:2000]
             if status == "completed":
                 values["processed_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
-            if metadata:
-                values["doc_metadata"] = metadata
             async with session_scope() as session:
+                if metadata:
+                    # merge: keep provenance written by uploads/connectors (url, connector, owner, ...)
+                    doc = await session.get(Document, uuid.UUID(document_id))
+                    existing = dict(doc.doc_metadata or {}) if doc is not None else {}
+                    values["doc_metadata"] = {**existing, **metadata}
                 await session.execute(update(Document).where(Document.id == uuid.UUID(document_id)).values(**values))
         except Exception as exc:
             logger.warning("Could not update document status", document_id=document_id, error=str(exc))

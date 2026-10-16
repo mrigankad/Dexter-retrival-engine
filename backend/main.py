@@ -51,13 +51,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             setup_telemetry(app)
         except Exception as exc:
             logger.warning("Telemetry setup failed", error=str(exc))
-    if settings.mcp_server_enabled:
-        from src.mcp_server import mcp_lifespan
-        async with mcp_lifespan():
-            logger.info("MCP server mounted", path="/mcp", auth_required=settings.mcp_require_auth)
+    from src.connectors.scheduler import start_scheduler, stop_scheduler
+    if not settings.is_test:
+        start_scheduler()
+    try:
+        if settings.mcp_server_enabled:
+            from src.mcp_server import mcp_lifespan
+            async with mcp_lifespan():
+                logger.info("MCP server mounted", path="/mcp", auth_required=settings.mcp_require_auth)
+                yield
+        else:
             yield
-    else:
-        yield
+    finally:
+        await stop_scheduler()
     logger.info("Shutting down application")
     from src.ingestion.worker import wait_for_inline_jobs
     await wait_for_inline_jobs()
@@ -115,6 +121,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 from src.api.v1.agents_routes import router as agents_router  # noqa: E402
 from src.api.v1.auth_routes import router as auth_router  # noqa: E402
 from src.api.v1.chat_routes import router as chat_router  # noqa: E402
+from src.api.v1.connector_routes import router as connector_router  # noqa: E402
 from src.api.v1.evaluation_routes import router as evaluation_router  # noqa: E402
 from src.api.v1.health_routes import router as health_router  # noqa: E402
 from src.api.v1.ingestion_routes import router as ingestion_router  # noqa: E402
@@ -129,6 +136,7 @@ for prefix in ("", "/v1"):
     app.include_router(ingestion_router, prefix=prefix, tags=["Documents" + tag_suffix], include_in_schema=not prefix)
     app.include_router(knowledge_router, prefix=f"{prefix}/knowledge", tags=["Knowledge" + tag_suffix], include_in_schema=not prefix)
     app.include_router(trace_router, prefix=f"{prefix}/traces", tags=["Traces" + tag_suffix], include_in_schema=not prefix)
+    app.include_router(connector_router, prefix=f"{prefix}/connectors", tags=["Connectors" + tag_suffix], include_in_schema=not prefix)
     app.include_router(evaluation_router, prefix=f"{prefix}/evaluations", tags=["Evaluation" + tag_suffix], include_in_schema=not prefix)
 app.include_router(agents_router, tags=["Multi-Agent (experimental)"])
 

@@ -87,6 +87,10 @@ class Document(Base):
     processed_at = Column(DateTime, nullable=True)
     doc_metadata = Column(JSON, default=dict)
     error_message = Column(Text, nullable=True)
+    source_connector_id = Column(String(64), nullable=True, index=True)
+    external_id = Column(String(1024), nullable=True)
+    source_url = Column(String(2048), nullable=True)
+    content_hash = Column(String(64), nullable=True)
 
     user = relationship("User", back_populates="documents")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
@@ -156,4 +160,57 @@ class Feedback(Base):
     created_at = Column(DateTime, default=utcnow)
 
 
+class ConnectorRow(Base):
+    """A configured external source (secrets stored as env:VAR references)."""
+    __tablename__ = "connectors"
+
+    id = Column(String(64), primary_key=True)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    type = Column(String(32), nullable=False)
+    name = Column(String(255), nullable=False)
+    config_json = Column(JSON, default=dict)
+    visibility = Column(String(16), default="tenant")
+    shared_groups = Column(String(1024), default="")
+    inherit_source_acl = Column(Boolean, default=True)
+    delete_missing = Column(Boolean, default=True)
+    enabled = Column(Boolean, default=True)
+    schedule_minutes = Column(Integer, nullable=True)
+    delta_cursor = Column(Text, nullable=True)
+    last_run_at = Column(DateTime, nullable=True)
+    last_status = Column(String(32), nullable=True)
+    created_by = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class ConnectorItem(Base):
+    """One source item we have ingested (for change detection and removal)."""
+    __tablename__ = "connector_items"
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    connector_id = Column(String(64), ForeignKey("connectors.id", ondelete="CASCADE"), nullable=False, index=True)
+    external_id = Column(String(1024), nullable=False)
+    document_id = Column(Uuid(as_uuid=True), nullable=True, index=True)
+    version_key = Column(String(512), nullable=True)
+    principals = Column(JSON, default=list)
+    last_seen_at = Column(DateTime, default=utcnow)
+    created_at = Column(DateTime, default=utcnow)
+
+
+class ConnectorRun(Base):
+    __tablename__ = "connector_runs"
+
+    id = Column(String(64), primary_key=True)
+    connector_id = Column(String(64), ForeignKey("connectors.id", ondelete="CASCADE"), nullable=False, index=True)
+    started_at = Column(DateTime, default=utcnow)
+    finished_at = Column(DateTime, nullable=True)
+    status = Column(String(32), default="running")
+    added = Column(Integer, default=0)
+    updated = Column(Integer, default=0)
+    removed = Column(Integer, default=0)
+    skipped = Column(Integer, default=0)
+    errors = Column(JSON, default=list)
+
+
 Index("ix_document_chunks_doc_idx", DocumentChunk.document_id, DocumentChunk.chunk_index)
+Index("ix_connector_items_ext", ConnectorItem.connector_id, ConnectorItem.external_id, unique=True)

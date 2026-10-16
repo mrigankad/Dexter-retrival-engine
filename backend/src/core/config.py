@@ -203,6 +203,13 @@ class Settings(BaseSettings):
     mcp_timeout: int = Field(default=60)
 
     # ==========================================
+    # Connectors
+    # ==========================================
+    connector_scheduler_enabled: bool = Field(default=True, description="Run scheduled connector syncs inside the API process")
+    connector_scheduler_tick_seconds: int = Field(default=60)
+    connector_max_items_per_run: int = Field(default=5000)
+
+    # ==========================================
     # Retrieval
     # ==========================================
     chunk_size: int = Field(default=512, description="Target chunk size in tokens")
