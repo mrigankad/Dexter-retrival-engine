@@ -33,6 +33,7 @@ class LocalKnowledgeAdapter(KnowledgeAdapter):
             filters=request.filters,
             rerank=request.rerank,
             alternate_queries=request.alternate_queries,
+            include_summaries=request.include_summaries,
         )
         built = self.context_builder.build(chunks, max_tokens=max(256, request.max_context_chars // 4))
         return RetrievalResult(
@@ -42,7 +43,8 @@ class LocalKnowledgeAdapter(KnowledgeAdapter):
             latency_ms=round((time.perf_counter() - started) * 1000, 1),
             context=built.text,
             executed_queries=[request.query] + list(request.alternate_queries),
-            metadata={"candidates": len(chunks), "context_tokens": built.tokens, "truncated": built.truncated},
+            metadata={"candidates": len(chunks), "context_tokens": built.tokens, "truncated": built.truncated,
+                      **{f"adaptive_{k}": v for k, v in (self.retriever.last_trace or {}).items()}},
         )
 
     async def healthcheck(self) -> Dict[str, Any]:

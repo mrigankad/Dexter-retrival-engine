@@ -36,6 +36,10 @@ question ─▶ route ─▶ plan ─▶ retrieve (parallel) ─▶ evidence [1.
 * **MCP server** – Bodham is itself an MCP server at `/mcp` (streamable HTTP) exposing `knowledge_retrieve`, `list_documents` and `list_backends`, so Foundry Agent Service, Claude, LangGraph or any MCP client can use it as a knowledge source.
 * **Permission model** – every chunk carries ACL principals (`user:`, `tenant:`, `group:`, `public`); retrieval and document listing filters are derived from the verified token, never from the client, and anonymous callers only see public documents. Documents are uploaded as private, tenant or public and can be shared with groups.
 * **Authentication** – local JWTs (with tenant, role and group claims and admin user management) or Microsoft Entra ID bearer tokens validated against the tenant JWKS (`AUTH_MODE=entra|both`).
+* **Connectors with permission sync** – SharePoint/OneDrive (Microsoft Graph delta + permissions), Google Drive, Confluence, S3, web pages/sitemaps and local folders; change detection, removal of deleted items, source ACLs mapped to Bodham principals, scheduled syncs.
+* **Talk to your data** – a governed `data.query` tool: read-only connections, schema discovery, a semantic business layer (entities, metrics, synonyms, verified queries), NL→SQL with policy feedback, and a sqlglot AST policy (single SELECT, table allowlist, PII denylist, row caps). Questions route to `DATA` or `HYBRID` and return cited numbers plus table and chart blocks.
+* **Retrieval tiers** – a CRAG-style relevance gate rewrites and retries weak queries; an extractive document-outline chunk per document serves overview questions.
+* **Tracing** – OpenTelemetry spans per stage (route, retrieve, synthesize) with GenAI attributes, exported over OTLP grpc or http (Langfuse-compatible).
 * **Observability & evaluation** – per-query traces (`/traces`), feedback, an offline eval harness (hit@k, MRR, context recall, citation rate, LLM-judged faithfulness) and a sample dataset.
 * **Typed streaming UI contract** – SSE events `progress`, `evidence`, `answer_delta`, `done`; the bundled React UI shows the live stage and confidence.
 
@@ -95,12 +99,14 @@ Ingestion then stays on the Azure side (Blob / SharePoint / OneLake knowledge so
 | `GET /chat/sessions`, `GET/DELETE /chat/history/{id}`, `POST /chat/feedback` | conversation memory and feedback |
 | `POST /ingest` (form fields `visibility`, `groups`), `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/chunks`, `PUT /documents/{id}/sharing`, `POST /documents/{id}/reprocess`, `DELETE /documents/{id}`, `GET /files/{id}` | document lifecycle and sharing |
 | `/mcp` | MCP server (streamable HTTP, bearer auth): tools `knowledge_retrieve`, `list_documents`, `list_backends` |
+| `GET /connectors/types`, `GET/POST /connectors`, `PUT/DELETE /connectors/{id}`, `POST /connectors/{id}/test|sync`, `GET /connectors/{id}/runs|items` | external sources (admin) |
+| `GET/POST /data/connections`, `POST /data/connections/{id}/test|discover`, `GET/PUT /data/connections/{id}/semantic`, `POST .../semantic/suggest`, `POST /data/query`, `POST /data/sql` (admin), `POST /data/validate`, `GET /data/queries` | structured data |
 | `GET /knowledge/backends`, `GET /knowledge/backends/{name}/health`, `POST /knowledge/retrieve` | backends and the raw retrieve tool (same contract a future MCP tool exposes) |
 | `GET /traces`, `GET /traces/{trace_id}` | audit: intent, plan, tool calls, latency, tokens |
 | `POST /evaluations/run`, `GET /evaluations/{message_id}` | eval harness / per-message scores |
 | `POST /auth/login|register|refresh`, `GET /auth/me`, `GET /auth/users`, `PUT /auth/users/{username}` (admin), `GET /health` | auth, user management and health |
 
-SSE events: `start`, `progress {stage,label}`, `evidence [...]`, `sources [...]`, `answer_delta {text}`, `warning`, `done {answer_id,confidence,latency_ms,trace_id,citations,usage}`, `metadata {message_id}`, `error`.
+SSE events: `start`, `progress {stage,label}`, `evidence [...]`, `sources [...]`, `table {...}`, `chart {...}`, `answer_delta {text}`, `warning`, `done {answer_id,confidence,latency_ms,trace_id,citations,usage}`, `metadata {message_id}`, `error`.
 
 ---
 
@@ -125,6 +131,8 @@ backend/
   src/ingestion/          parsers, hierarchical chunker, pipeline, worker
   src/retrieval/          hybrid retriever, RRF, context builder
   src/knowledge/          KnowledgeAdapter + local / foundry_iq / mcp / mock + registry
+  src/connectors/         source connectors (SharePoint, Google Drive, Confluence, S3, web, folder) + sync + scheduler
+  src/data_gateway/       structured-data tool: connections, discovery, semantic layer, SQL policy, NL->SQL, charts
   src/mcp_server/         MCP server (knowledge_retrieve, list_documents, list_backends) mounted at /mcp
   src/orchestrator/       router, planner, executor, synthesizer, engine
   src/evaluation/         offline eval harness
@@ -143,7 +151,7 @@ Every setting in [`backend/src/core/config.py`](backend/src/core/config.py) is a
 
 ## Roadmap
 
-Connectors (SharePoint, Google Drive, Confluence, S3) · structured-data `data.query` tool with AST-validated read-only SQL · CRAG-style iterative retrieval and graph tier behind the router · OTel/Langfuse export · notebooks, summaries, follow-ups · OAuth 2.1 on the MCP server. Details and status: [`BUILD_STATUS.md`](BUILD_STATUS.md), [`docs/ARCHITECTURE_V3.md`](docs/ARCHITECTURE_V3.md).
+Graph tier (LightRAG/HippoRAG-style) and ColPali page retrieval behind the router · notebooks, source summaries, suggested follow-ups, report export · OAuth 2.1 on the MCP server · service-account flows for Google Drive, incremental Confluence sync · online RAGAS sampling. Details and status: [`BUILD_STATUS.md`](BUILD_STATUS.md), [`docs/ARCHITECTURE_V3.md`](docs/ARCHITECTURE_V3.md).
 
 ## License
 

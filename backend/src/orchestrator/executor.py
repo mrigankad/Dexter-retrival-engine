@@ -148,11 +148,12 @@ class PlanExecutor:
         top_k = top_k or settings.rerank_top_k
         per_step_k = top_k if len(steps) == 1 else max(3, (top_k * 2) // len(steps) + 1)
 
+        overview = plan.query_type in ("aggregation", "analytical") and settings.summary_chunks_enabled
         requests = []
         for i, step in enumerate(steps):
             requests.append((step.id, RetrievalRequest(
                 query=step.goal, top_k=per_step_k, filters=filters or RetrievalFilters(),
-                rerank=True, reasoning_effort=reasoning_effort,  # type: ignore[arg-type]
+                rerank=True, reasoning_effort=reasoning_effort, include_summaries=overview,  # type: ignore[arg-type]
                 alternate_queries=list(step.alternate_queries) if settings.multi_query_enabled else [],
                 max_context_chars=(max_context_tokens or settings.max_context_tokens) * 4,
             )))

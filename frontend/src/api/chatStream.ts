@@ -7,7 +7,7 @@
 
 import { parseSSEBuffer, safeParseJSON } from './streamParser';
 import { useAuthStore } from '@/stores/authStore';
-import type { DoneEventData, Evidence, ProgressEventData, Source, StreamHandlers } from '@/types';
+import type { ChartBlockData, DoneEventData, Evidence, ProgressEventData, Source, StreamHandlers, TableBlockData } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -131,6 +131,22 @@ function dispatchEvent(
             const evidence = safeParseJSON<Evidence[]>(data);
             if (evidence && Array.isArray(evidence)) {
                 handlers.onEvidence?.(evidence);
+            }
+            break;
+        }
+
+        case 'table': {
+            const table = safeParseJSON<TableBlockData>(data);
+            if (table && Array.isArray(table.columns)) {
+                handlers.onBlock?.({ type: 'table', data: table });
+            }
+            break;
+        }
+
+        case 'chart': {
+            const chart = safeParseJSON<ChartBlockData>(data);
+            if (chart && chart.type) {
+                handlers.onBlock?.({ type: 'chart', data: chart });
             }
             break;
         }

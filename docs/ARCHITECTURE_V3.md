@@ -37,6 +37,8 @@ Bodham is a pluggable enterprise retrieval engine: it ingests documents into a h
 | `retrieval/` | `HybridRetriever` (multi-query → Qdrant prefetch+RRF → dedupe → rerank), RRF/dedupe helpers, `ContextBuilder` (numbered evidence within a token budget). |
 | `knowledge/` | `KnowledgeAdapter` ABC + `LocalKnowledgeAdapter`, `FoundryIQAdapter`, `McpKnowledgeAdapter` (any MCP knowledge server), `MockKnowledgeAdapter`, registry (`KNOWLEDGE_BACKEND`, `KNOWLEDGE_FALLBACK_BACKEND`). |
 | `mcp_server/` | Bodham as an MCP server (streamable HTTP at `/mcp`, stateless, JSON responses): tools `knowledge_retrieve`, `list_documents`, `list_backends`; bearer auth via Bodham/Entra tokens or `MCP_API_TOKEN`; the caller's identity drives the same ACL filters as the HTTP API. |
+| `connectors/` | Source connectors (`local_folder`, `web`, `s3`, `sharepoint`/OneDrive via Microsoft Graph, `google_drive`, `confluence`) behind one `Connector` ABC (`list_items`, `fetch`, `test_connection`, delta cursor); `ConnectorSyncService` diffs by version key + ACL, creates/updates/removes documents, enqueues ingestion with source-derived principals; in-process scheduler; admin API. |
+| `data_gateway/` | The `data.query` tool: read-only connections (`DataConnectionManager`), schema discovery, semantic model (entities, metrics, synonyms, relationships, glossary, verified queries), relevant-table ranking, `SqlGenerator` (fast model, policy feedback retry), `SqlPolicy` (sqlglot AST), timed/capped execution, chart suggestion/validation; persistence + admin/query API. |
 | `core/access.py`, `core/auth.py` | Principals (`public`, `tenant:<id>`, `user:<id>`, `group:<name>`), ACL derivation for documents, mandatory retrieval filters from the verified identity (fail closed); bearer verification for local JWTs and Entra ID tokens (JWKS cache). |
 | `orchestrator/` | `QueryRouter` (rules first, cheap LLM for the ambiguous middle), `QueryPlanner` (bounded decomposition + alternate phrasings, cached), `PlanExecutor` (parallel steps, budgets, fallback backend, cross-step RRF), `Synthesizer` (single grounded generation, citation validation, confidence), `RetrievalEngine` (streams typed events, persists traces). |
 | `evaluation/` | Offline harness: hit@k, MRR, context recall, answer substring recall, citation rate, optional LLM-judged faithfulness/relevancy, latency percentiles. |
@@ -85,6 +87,19 @@ Adding a backend = one class + one registry entry. `POST /knowledge/retrieve` an
 * **Identity sources.** `AUTH_MODE=local` issues HS256 JWTs carrying `tenant_id`, `role`, `groups` (admins manage them via `PUT /auth/users/{username}`); `AUTH_MODE=entra` validates RS256 Entra ID tokens against the tenant JWKS and maps `oid`/`tid`/`groups`/`roles` (members of `ENTRA_ADMIN_GROUP` become admins); `both` accepts either.
 * **Kill switch.** `ACL_ENFORCEMENT=false` disables filtering for single-user deployments.
 
+## 4b. Structured data (`data.query`)
+
+Questions that look measurable (revenue, counts, top-N, periods) route to `DATA`; those that also ask "why" or mention documents route to `HYBRID` (both tools run in parallel). The data step: verified-query match → else relevant tables (lexical overlap with names, columns, entity synonyms, plus FK neighbours) → compact schema context + approved semantics + verified examples → fast-model SQL as JSON → `SqlPolicy.validate` (single SELECT/UNION, nested writes and forbidden functions rejected, table allowlist, PII column denylist including projected `*`, join/subquery caps, LIMIT clamp) → execution with timeout and row cap (`LIMIT n+1` probe marks truncation) → `QueryResult`. Results become `[sql]` evidence the synthesizer must cite as measured facts, plus `table` and `chart` blocks (declarative spec, validated) streamed to the UI. Admins manage connections and the semantic model (`/data/connections`, `.../semantic`, `.../semantic/suggest`); every query is logged.
+
+## 4c. Retrieval tiers
+
+* **Relevance gate (CRAG-style).** After reranking, if the best score is below `RELEVANCE_GATE_THRESHOLD`, the fast model rewrites the query once in document phrasing; the retry is fused (RRF) with the first attempt and the trace records `adaptive_*` fields.
+* **Document outline chunk.** Ingestion prepends one extractive overview chunk per document (title, section headings, table count, opening text; `chunk_level=document_summary`). Aggregation/analytical questions add a dedicated prefetch of those chunks so overview answers see every document.
+
+## 4d. Observability
+
+`core/telemetry.py` emits spans `bodham.answer` → `bodham.route` / `bodham.retrieve` / `bodham.synthesize` with GenAI-style attributes (operation name, model, token usage, intent, confidence, chunk ids, rerank scores, tool calls). Export is OTLP grpc (collectors) or OTLP http with headers (`OTLP_PROTOCOL=http`, `OTLP_HEADERS=Authorization=Basic ...` for Langfuse). Per-query traces are also persisted in the `traces` table.
+
 ## 5. Running modes
 
 | Mode | Settings | External services |
@@ -100,7 +115,9 @@ Adding a backend = one class + one registry entry. `POST /knowledge/retrieve` an
 
 **v2 (this branch):** MCP server + generic MCP adapter, permission model (ACL principals, mandatory filters, sharing, admin user management), Entra ID token validation, product renamed to Bodham. 217 tests.
 
-**v3 (next):**
+**v3 (this branch):** connectors with ACL sync, the structured-data gateway, retrieval tiers, OTel export, table/chart blocks in the UI. 260 tests.
+
+**v4 (next):**
 3. Connectors: SharePoint/OneDrive, Google Drive, Confluence, S3/Blob, web crawl (Onyx-style connector ABC + scheduler).
 4. Structured data tool (`data.query`): semantic model, NL→SQL, `sqlglot` AST policy (read-only, allowlists, limits), evidence type `sql` — the Bodham blueprint.
 5. Retrieval tiers behind the router: CRAG-style relevance gating + iterative retrieval, RAPTOR-lite summaries for "summarise the whole document", LightRAG/HippoRAG graph tier for multi-hop, ColPali page retrieval for visual PDFs.

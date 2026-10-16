@@ -20,6 +20,7 @@ from src.contracts import (
 )
 from src.core.config import settings
 from src.core.logger import get_logger
+from src.core.telemetry import set_span_attributes, trace_span
 from src.knowledge import KnowledgeAdapter, get_knowledge_adapter
 from src.services.llm.nvidia_llm_service import LLMUsage, NvidiaLLMService, get_llm_service
 
@@ -111,7 +112,10 @@ class RetrievalEngine:
         citations = []
         blocks: List[AnswerBlock] = []
 
-        try:
+        with trace_span("bodham.answer", {"gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": "bodham",
+                                           "bodham.trace_id": trace_id, "bodham.session_id": session_id or "",
+                                           "bodham.backend": self.adapter.name}) as root_span:
+          try:
             yield ProgressEvent(stage="understanding", label="Understanding question").to_stream()
             blocked = await self._check_input(query)
             if blocked:
@@ -124,10 +128,13 @@ class RetrievalEngine:
                 data_available = self.executor.data_service.available
             except Exception:
                 data_available = False
-            if use_rag:
-                decision = await self.router.route(query, has_documents=has_documents, usage=usage, data_available=data_available)
-            else:
-                decision = RouteDecision(Intent.CHAT, 1.0, "RAG disabled by request", "chat")
+            with trace_span("bodham.route") as route_span:
+                if use_rag:
+                    decision = await self.router.route(query, has_documents=has_documents, usage=usage, data_available=data_available)
+                else:
+                    decision = RouteDecision(Intent.CHAT, 1.0, "RAG disabled by request", "chat")
+                set_span_attributes(route_span, {"bodham.intent": decision.intent.value, "bodham.route_method": decision.method,
+                                                 "bodham.query_type": decision.query_type, "bodham.route_confidence": decision.confidence})
             intent = decision.intent
             yield ProgressEvent(stage="routing", label=f"Route: {intent.value.lower()}",
                                 detail={"confidence": decision.confidence, "reason": decision.reason}).to_stream()
@@ -173,9 +180,17 @@ class RetrievalEngine:
                         yield ProgressEvent(stage="querying_data", label="Querying live data").to_stream()
                     if any(s.tool == "knowledge.retrieve" for s in plan.steps):
                         yield ProgressEvent(stage="retrieving", label=f"Searching {self.adapter.name} knowledge").to_stream()
-                    execution = await self.executor.execute(
-                        plan, filters=filters, top_k=top_k, reasoning_effort=reasoning_effort, usage=usage,
-                    )
+                    with trace_span("bodham.retrieve", {"gen_ai.operation.name": "retrieval", "bodham.steps": len(plan.steps),
+                                                        "bodham.multi_hop": plan.is_multi_hop}) as retrieve_span:
+                        execution = await self.executor.execute(
+                            plan, filters=filters, top_k=top_k, reasoning_effort=reasoning_effort, usage=usage,
+                        )
+                        set_span_attributes(retrieve_span, {
+                            "bodham.evidence_count": len(execution.evidence), "bodham.data_results": len(execution.data_results),
+                            "bodham.tool_calls": [f"{t.tool}:{t.status}:{t.latency_ms}" for t in execution.tool_calls],
+                            "bodham.chunk_ids": [c.id for c in execution.chunks],
+                            "bodham.rerank_scores": [round(c.rerank_score, 3) for c in execution.chunks if c.rerank_score is not None],
+                        })
                     warnings.extend(execution.warnings)
                     for w in execution.warnings:
                         yield WarningEvent(message=w).to_stream()
@@ -204,10 +219,14 @@ class RetrievalEngine:
 
                         # 4. Synthesize once
                         yield ProgressEvent(stage="synthesizing", label="Writing answer").to_stream()
-                        async for token in self.synthesizer.stream(query, execution.context, plan.synthesis_strategy,
-                                                                   chat_history, usage=usage):
-                            text_parts.append(token)
-                            yield AnswerDeltaEvent(text=token).to_stream()
+                        with trace_span("bodham.synthesize", {"gen_ai.operation.name": "chat", "gen_ai.request.model": self.llm.model,
+                                                              "bodham.strategy": plan.synthesis_strategy}) as synth_span:
+                            async for token in self.synthesizer.stream(query, execution.context, plan.synthesis_strategy,
+                                                                       chat_history, usage=usage):
+                                text_parts.append(token)
+                                yield AnswerDeltaEvent(text=token).to_stream()
+                            set_span_attributes(synth_span, {"gen_ai.usage.input_tokens": usage.prompt_tokens,
+                                                             "gen_ai.usage.output_tokens": usage.completion_tokens})
                         raw = "".join(text_parts)
                         cleaned, citations = resolve_citations(raw, execution.evidence)
                         confidence = assess_confidence(execution.evidence, citations, cleaned)
@@ -227,6 +246,9 @@ class RetrievalEngine:
                                              "citations": [c.model_dump() for c in citations]},
             )
             await self._emit_trace(trace)
+            set_span_attributes(root_span, {"bodham.intent": intent.value, "bodham.confidence": confidence.value,
+                                            "bodham.latency_ms": latency, "bodham.evidence_count": trace.evidence_count,
+                                            "gen_ai.usage.input_tokens": usage.prompt_tokens, "gen_ai.usage.output_tokens": usage.completion_tokens})
             self.last_answer = Answer(
                 answer_id=answer_id, session_id=session_id, text=final_text, intent=intent, confidence=confidence,
                 blocks=blocks, evidence=execution.evidence if execution else [], citations=citations, latency_ms=latency,
@@ -236,7 +258,7 @@ class RetrievalEngine:
             yield DoneEvent(answer_id=answer_id, confidence=confidence.value, latency_ms=latency, trace_id=trace_id,
                             session_id=session_id, citations=[c.model_dump() for c in citations],
                             usage=usage.to_dict()).to_stream()
-        except Exception as exc:
+          except Exception as exc:
             logger.exception("Engine failure", error=str(exc), trace_id=trace_id)
             yield ErrorEvent(message=f"{type(exc).__name__}: {exc}").to_stream()
 

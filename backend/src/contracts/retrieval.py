@@ -36,6 +36,8 @@ class RetrievalRequest(BaseModel):
     alternate_queries: List[str] = Field(default_factory=list)
     # Max characters of context an adapter should return for synthesis.
     max_context_chars: int = 24_000
+    # Overview / summary questions: also pull document-outline chunks.
+    include_summaries: bool = False
 
 
 class RetrievedChunk(BaseModel):

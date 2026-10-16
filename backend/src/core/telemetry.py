@@ -30,15 +30,29 @@ try:
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
     from opentelemetry.sdk.resources import Resource
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
     from opentelemetry.trace import Status, StatusCode
-    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
     _otel_available = True
 except ImportError:
-    logger.warning("OpenTelemetry not installed. Tracing disabled.")
+    logger.info("OpenTelemetry not installed. Tracing disabled.")
+
+
+def _parse_headers(raw: str) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for part in (raw or "").split(","):
+        if "=" in part:
+            k, v = part.split("=", 1)
+            out[k.strip()] = v.strip()
+    return out
+
+
+def _make_span_exporter():
+    """OTLP exporter per settings: grpc (collectors like Jaeger/Tempo) or http (Langfuse, Phoenix)."""
+    headers = _parse_headers(settings.otlp_headers)
+    if settings.otlp_protocol == "http":
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as HttpExporter
+        return HttpExporter(endpoint=settings.otlp_endpoint, headers=headers or None)
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter as GrpcExporter
+    return GrpcExporter(endpoint=settings.otlp_endpoint, headers=headers or None, insecure=settings.otlp_endpoint.startswith("http://"))
 
 
 def setup_telemetry(app=None) -> bool:
@@ -65,55 +79,40 @@ def setup_telemetry(app=None) -> bool:
         # Create resource with service information
         resource = Resource.create({
             "service.name": settings.app_name,
-            "service.version": "1.0.0",
+            "service.version": "2.0.0",
             "deployment.environment": settings.app_env
         })
         
         # Setup tracing
         tracer_provider = TracerProvider(resource=resource)
-        
-        # Configure OTLP exporter
-        otlp_exporter = OTLPSpanExporter(
-            endpoint=settings.otlp_endpoint,
-            insecure=True  # Use insecure for local development
-        )
-        
-        span_processor = BatchSpanProcessor(otlp_exporter)
-        tracer_provider.add_span_processor(span_processor)
+        tracer_provider.add_span_processor(BatchSpanProcessor(_make_span_exporter()))
         trace.set_tracer_provider(tracer_provider)
-        
         _tracer = trace.get_tracer(__name__)
-        
-        # Setup metrics
-        metric_reader = PeriodicExportingMetricReader(
-            OTLPMetricExporter(
-                endpoint=settings.otlp_endpoint,
-                insecure=True
-            ),
-            export_interval_millis=60000  # Export every 60 seconds
-        )
-        
-        meter_provider = MeterProvider(
-            resource=resource,
-            metric_readers=[metric_reader]
-        )
-        metrics.set_meter_provider(meter_provider)
-        
-        _meter = metrics.get_meter(__name__)
-        
-        # Instrument FastAPI
-        if app:
-            FastAPIInstrumentor.instrument_app(app)
-        
-        # Instrument HTTPX (for outgoing requests)
-        HTTPXClientInstrumentor().instrument()
-        
-        logger.info(
-            "OpenTelemetry initialized",
-            endpoint=settings.otlp_endpoint,
-            service=settings.app_name
-        )
-        
+
+        # Metrics (grpc collector only; optional)
+        if settings.otlp_protocol == "grpc":
+            try:
+                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+                metric_reader = PeriodicExportingMetricReader(
+                    OTLPMetricExporter(endpoint=settings.otlp_endpoint, insecure=settings.otlp_endpoint.startswith("http://")),
+                    export_interval_millis=60000,
+                )
+                metrics.set_meter_provider(MeterProvider(resource=resource, metric_readers=[metric_reader]))
+                _meter = metrics.get_meter(__name__)
+            except Exception as exc:
+                logger.info("OTLP metrics exporter not configured", error=str(exc))
+
+        # Auto-instrumentation (optional packages)
+        try:
+            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+            from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+            if app:
+                FastAPIInstrumentor.instrument_app(app)
+            HTTPXClientInstrumentor().instrument()
+        except Exception as exc:
+            logger.info("OTel auto-instrumentation not available", error=str(exc))
+
+        logger.info("OpenTelemetry initialized", endpoint=settings.otlp_endpoint, protocol=settings.otlp_protocol, service=settings.app_name)
         return True
         
     except Exception as e:
@@ -122,13 +121,35 @@ def setup_telemetry(app=None) -> bool:
 
 
 def get_tracer():
-    """Get the global tracer instance."""
+    """Get the global tracer instance (None when OpenTelemetry is not installed or tracing is disabled)."""
     global _tracer
-    
-    if _tracer is None and _otel_available:
+
+    if _tracer is None and _otel_available and settings.tracing_enabled:
         _tracer = trace.get_tracer(__name__)
-    
+
     return _tracer
+
+
+def set_tracer_for_tests(tracer) -> None:
+    global _tracer
+    _tracer = tracer
+
+
+def set_span_attributes(span, attributes: Dict[str, Any]) -> None:
+    """Set attributes on a span if there is one (values must be OTel primitives)."""
+    if span is None:
+        return
+    for key, value in attributes.items():
+        if value is None:
+            continue
+        if isinstance(value, (list, tuple)):
+            value = [str(v) for v in value][:50]
+        elif not isinstance(value, (str, int, float, bool)):
+            value = str(value)
+        try:
+            span.set_attribute(key, value)
+        except Exception:
+            pass
 
 
 def get_meter():

@@ -3,7 +3,7 @@
 // =====================
 export type StreamEventType =
     | 'token' | 'answer_delta' | 'sources' | 'evidence' | 'progress' | 'warning'
-    | 'done' | 'error' | 'start' | 'metadata';
+    | 'table' | 'chart' | 'done' | 'error' | 'start' | 'metadata';
 
 export type ProgressStage =
     | 'understanding' | 'routing' | 'planning' | 'retrieving' | 'reranking'
@@ -41,6 +41,32 @@ export interface Citation {
     marker: string;
     evidence_id: string;
 }
+
+export interface TableBlockData {
+    query_id: string;
+    title?: string | null;
+    columns: string[];
+    rows: unknown[][];
+    row_count: number;
+    sql: string;
+    connection: string;
+}
+
+export interface ChartBlockData {
+    type: 'kpi' | 'line' | 'bar' | 'stacked_bar' | 'table';
+    title: string;
+    query_id?: string;
+    x?: string;
+    y?: string[];
+    value?: unknown;
+    label?: string;
+    format?: Record<string, string>;
+}
+
+export type AnswerBlock =
+    | { type: 'table'; data: TableBlockData }
+    | { type: 'chart'; data: ChartBlockData }
+    | { type: 'markdown' | 'kpi'; data: Record<string, unknown> };
 
 export interface DoneEventData {
     answer_id: string;
@@ -122,6 +148,7 @@ export interface Message {
     sources?: Source[];
     evidence?: Evidence[];
     citations?: Citation[];
+    blocks?: AnswerBlock[];
     status: MessageStatus;
     stage?: ProgressEventData;
     confidence?: 'high' | 'medium' | 'low';
@@ -179,6 +206,7 @@ export interface StreamHandlers {
     onEvidence?: (evidence: Evidence[]) => void;
     onWarning?: (message: string) => void;
     onComplete?: (data: DoneEventData) => void;
+    onBlock?: (block: AnswerBlock) => void;
 }
 
 // =====================

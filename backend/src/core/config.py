@@ -237,6 +237,10 @@ class Settings(BaseSettings):
     max_sub_queries: int = Field(default=4)
     max_tool_calls: int = Field(default=4)
     min_relevance_score: float = Field(default=0.0, description="Drop chunks with fused score below this")
+    adaptive_retrieval_enabled: bool = Field(default=True, description="CRAG-style gate: rewrite the query and retry when top relevance is weak")
+    relevance_gate_threshold: float = Field(default=0.25, description="Reranker score below which a retry with a rewritten query is attempted")
+    adaptive_max_retries: int = Field(default=1)
+    summary_chunks_enabled: bool = Field(default=True, description="Index an extractive document-outline chunk per document (helps summarise/overview questions)")
     embedding_batch_size: int = Field(default=16)
     embedding_cache_size: int = Field(default=2048)
 
@@ -265,7 +269,9 @@ class Settings(BaseSettings):
     enable_metrics: bool = Field(default=True)
     metrics_port: int = Field(default=9090)
     tracing_enabled: bool = Field(default=False)
-    otlp_endpoint: str = Field(default="http://jaeger:4317")
+    otlp_endpoint: str = Field(default="http://jaeger:4317", description="OTLP collector; for Langfuse use https://<host>/api/public/otel/v1/traces with OTLP_PROTOCOL=http")
+    otlp_protocol: Literal["grpc", "http"] = Field(default="grpc")
+    otlp_headers: str = Field(default="", description="Comma separated key=value headers for the OTLP exporter (e.g. Authorization=Basic <base64 pk:sk>)")
     ragas_evaluation_enabled: bool = Field(default=False)
     persist_traces: bool = Field(default=True, description="Store per-query traces in the database")
 

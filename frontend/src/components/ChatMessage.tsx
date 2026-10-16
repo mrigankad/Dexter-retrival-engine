@@ -29,6 +29,7 @@ import { Copy, Check, Terminal } from 'lucide-react';
 import clsx from 'clsx';
 import type { Message, Source } from '@/types';
 import { StreamingCursor, ThinkingIndicator } from './chat/StreamingCursor';
+import { DataBlocks } from './chat/DataBlocks';
 import { SourceBadgeList } from './chat/SourceBadge';
 import { openDocumentFile } from '@/utils/fileUrl';
 import QualityBadge from './QualityBadge';
@@ -269,6 +270,11 @@ export const ChatMessage = memo(function ChatMessage({
                                     />
                                 </AnimatePresence>
                             </>
+                        )}
+
+                        {/* Structured data blocks (tables / charts from data.query) */}
+                        {!isUser && message.blocks && message.blocks.length > 0 && (
+                            <DataBlocks blocks={message.blocks} />
                         )}
 
                         {/* Answer confidence + route (from the engine's done/metadata events) */}

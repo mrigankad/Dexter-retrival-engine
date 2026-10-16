@@ -2,20 +2,24 @@
 
 _Last updated: 2026-10-16 (branch `claude/gallant-lovelace-lujn7r`)_
 
-## Phase 2 (this commit)
+## Phase 3 (latest commits)
 
 | Area | What |
 |---|---|
-| Rename | Product is **Bodham** everywhere (settings, prompts, compose names, UI, docs); the GitHub repository slug is unchanged. |
-| MCP server | `src/mcp_server/` mounted at `/mcp` (streamable HTTP, stateless, JSON). Tools: `knowledge_retrieve`, `list_documents`, `list_backends`. Bearer auth: Bodham JWT, Entra token or `MCP_API_TOKEN`; identity drives ACL filters. A fresh server is created per host lifespan (SDK session manager is single-use). |
-| MCP adapter | `KNOWLEDGE_BACKEND=mcp` → `McpKnowledgeAdapter` calls `MCP_TOOL_NAME` on `MCP_SERVER_URL` with `MCP_AUTH_TOKEN`; parses structured content / JSON / text; works against Foundry IQ (`knowledge_base_retrieve`) or another Bodham. |
-| Permission model | Principals (`public`, `tenant:`, `user:`, `group:`) stored as `acl` on every chunk; `RetrievalFilters.principals` enforced in Qdrant and the mock adapter; filters derived from the verified token in chat, `/knowledge/retrieve` and MCP; documents carry `visibility` + `shared_groups`; `PUT /documents/{id}/sharing` re-indexes; owner/admin checks on delete, reprocess, sharing; anonymous → public only; `ACL_ENFORCEMENT` kill switch. |
-| Auth | JWTs carry `tenant_id`, `role`, `groups`; `GET /auth/users`, `PUT /auth/users/{username}` (admin); `AUTH_MODE=local|entra|both` with Entra ID JWKS validation (`src/core/auth.py`); lightweight column migration on startup for existing databases. |
-| Tests | 217 passing: MCP tools in-process, MCP over the real streamable-HTTP client via ASGI, auth rejection, MCP adapter + engine on top of MCP, ACL visibility/groups/admin/anonymous through the HTTP API, Entra token validation with a generated RSA key, access helpers. |
+| Connectors | `src/connectors/`: local folder, web/sitemap, S3, SharePoint/OneDrive (Graph delta + permissions), Google Drive (permissions, Docs export), Confluence (restrictions). Sync service with change detection, removal, ACL from source (`visibility=source`), delta cursors, run history; scheduler; admin API `/connectors`. |
+| Structured data | `src/data_gateway/`: read-only connections, discovery, semantic model (entities/metrics/synonyms/verified queries), NL→SQL with policy feedback, sqlglot AST policy, capped execution, charts. `DATA`/`HYBRID` intents; `[sql]` evidence; `table`/`chart` SSE blocks; API `/data/*`. |
+| Retrieval tiers | CRAG-style relevance gate with one query rewrite; extractive document-outline chunk used for overview questions. |
+| Telemetry | OTel spans per stage with GenAI attributes; OTLP grpc or http (Langfuse headers) exporter. |
+| Frontend | Renders table and chart blocks (inline SVG line/bar/kpi following the data-viz method: thin rounded bars, 2px lines, hover crosshair, legend for multi-series, table view always present). |
+| Tests | 260 passing: connector mapping + lifecycle + mock transports, SQL policy matrix, semantic ranking, query service retry/clarification, engine DATA/HYBRID, data API, summary chunks, relevance gate, OTel spans, exporter factory. |
 
-## Phase 1 (previous commit)
+## Phase 2
 
-Research (`docs/MARKET_RESEARCH.md`, `docs/research/`), contracts, infrastructure (PostgreSQL/SQLite, Qdrant hybrid), NIM clients, ingestion, hybrid retrieval, orchestrator, API, eval harness, frontend events, packaging.
+Rename to Bodham; MCP server (`/mcp`) and generic MCP adapter; permission model (ACL principals, mandatory filters, sharing, admin users); Entra ID validation.
+
+## Phase 1
+
+Research, contracts, infrastructure (PostgreSQL/SQLite, Qdrant hybrid), NIM clients, ingestion, hybrid retrieval, orchestrator, API, eval harness, frontend events, packaging.
 
 ## Commands
 
@@ -24,18 +28,21 @@ cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r req
 make dev-local                      # SQLite + embedded Qdrant + inline ingestion; needs NVIDIA_API_KEY
 cp .env.example .env && make init   # full Docker stack
 make eval DATASET=evals/datasets/sample.json
-# MCP: POST http://localhost:8000/mcp  with  Authorization: Bearer <MCP_API_TOKEN or user token>
+# connectors:  POST /connectors {"type":"sharepoint","name":"Policies","settings":{"tenant_id":..,"client_id":..,"client_secret":"env:SP_CLIENT_SECRET","drive_id":..},"visibility":"source"}
+# data:        POST /data/connections {"id":"sales","name":"SalesDB","dialect":"postgres","url":"env:SALES_DB_URL"} then POST /data/query {"question":"revenue by month"}
 ```
 
 ## Decisions
 
-* MCP auth is bearer-token based for now; OAuth 2.1 metadata/discovery is deferred.
-* The MCP service token is tenant-scoped (sees everything the deployment's tenant holds); per-user access requires the user's own token.
-* Entra identities are not materialised as `users` rows; their claims drive access directly. Document ownership for Entra users is recorded in `doc_metadata.owner`.
+* Connector secrets are stored as `env:VAR` references, never plaintext; the API masks secret-looking settings.
+* `visibility=source` fails closed: an item with no readable principals is visible to admins only.
+* No LLM output reaches a database without `SqlPolicy`; raw SQL (admins) goes through the same policy.
+* Entra object ids are the user principals for SharePoint ACLs, so per-user trimming of Graph-synced content requires `AUTH_MODE=entra`.
+* The relevance gate costs one fast-model call only when the reranker's best score is weak.
 
 ## Not done / next
 
-1. Connectors (SharePoint/OneDrive, Google Drive, Confluence, S3, web) with ACL sync.
-2. Structured-data tool (`data.query`) with AST-validated read-only SQL and a semantic model (Bodham blueprint §10–11).
-3. Retrieval tiers behind the router (CRAG loop, RAPTOR-lite, graph tier), OTel/Langfuse export, notebooks/summaries/follow-ups.
-4. Live validation against NVIDIA NIM, Azure AI Search and Entra ID with real credentials.
+1. Graph tier (LightRAG/HippoRAG-style) and ColPali page retrieval behind the router.
+2. Notebooks/collections, source summaries, suggested follow-ups, report export.
+3. OAuth 2.1 on the MCP server; service-account flows for Google Drive; incremental Confluence sync.
+4. Live validation against NVIDIA NIM, Azure AI Search, Entra ID, Microsoft Graph and a real PostgreSQL warehouse.

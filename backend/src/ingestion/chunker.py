@@ -133,10 +133,33 @@ class HierarchicalChunker:
                 text = "\n\n".join(para_buf)
                 chunks.append(self._make_chunk(document_id, doc, title, text, page.page, buf_path, ContentType.TEXT, ChunkLevel.PARAGRAPH))
 
+        if settings.summary_chunks_enabled and chunks:
+            chunks.insert(0, self._outline_chunk(document_id, doc, title, chunks))
         for i, c in enumerate(chunks):
             c.chunk_index = i
             c.total_pages = doc.total_pages
         return chunks
+
+    def _outline_chunk(self, document_id: str, doc: ParsedDocument, title: str, chunks: List[Chunk]) -> Chunk:
+        """Extractive document overview: title, section headings, opening text, table list."""
+        headings: List[str] = []
+        for c in chunks:
+            for h in c.section_path:
+                if h not in headings:
+                    headings.append(h)
+        first_text = next((c.raw_content for c in chunks if c.content_type == ContentType.TEXT), "")
+        tables = sum(1 for c in chunks if c.chunk_level == ChunkLevel.TABLE_DATA)
+        parts = [f"Overview of document '{title}' ({doc.total_pages} pages, {len(chunks)} sections indexed)."]
+        if headings:
+            parts.append("Sections: " + "; ".join(headings[:40]) + ".")
+        if tables:
+            parts.append(f"Contains {tables} table(s).")
+        if first_text:
+            parts.append("Opening: " + " ".join(first_text.split())[:600])
+        text = "\n".join(parts)
+        chunk = self._make_chunk(document_id, doc, title, text, chunks[0].page or 1, [], ContentType.TEXT, ChunkLevel.SECTION)
+        chunk.metadata["chunk_level"] = "document_summary"
+        return chunk
 
     # ── helpers ────────────────────────────────────────────────────────
 

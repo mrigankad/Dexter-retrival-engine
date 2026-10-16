@@ -11,7 +11,7 @@
  */
 
 import { create } from 'zustand';
-import type { Message, Source, MessageStatus, ProgressEventData, Evidence } from '@/types';
+import type { Message, Source, MessageStatus, ProgressEventData, Evidence, AnswerBlock } from '@/types';
 import { streamChat } from '@/api/chatStream';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -88,6 +88,7 @@ interface ChatState {
     addMetadata: (id: string, metadata: Record<string, any>) => void;
     setStage: (id: string, stage: ProgressEventData) => void;
     addEvidence: (id: string, evidence: Evidence[]) => void;
+    addBlock: (id: string, block: AnswerBlock) => void;
 }
 
 // ── Store Implementation ────────────────────────────────────
@@ -287,6 +288,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 onEvidence: (evidence) => {
                     get().addEvidence(assistantId, evidence);
                 },
+                onBlock: (block) => {
+                    get().addBlock(assistantId, block);
+                },
                 onWarning: (message) => {
                     get().addMetadata(assistantId, { warning: message });
                 },
@@ -333,6 +337,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     addEvidence: (id: string, evidence: Evidence[]) => {
         set((state) => ({
             messages: state.messages.map((msg) => (msg.id === id ? { ...msg, evidence } : msg)),
+        }));
+    },
+
+    addBlock: (id: string, block: AnswerBlock) => {
+        set((state) => ({
+            messages: state.messages.map((msg) => (msg.id === id ? { ...msg, blocks: [...(msg.blocks || []), block] } : msg)),
         }));
     },
 

@@ -28,6 +28,9 @@ alembic>=1.13.0
 # MCP (server + client)
 mcp>=2.3.0
 
+# SQL policy engine (structured-data gateway)
+sqlglot>=25.0.0
+
 # Vector store
 qdrant-client>=1.12.0
 

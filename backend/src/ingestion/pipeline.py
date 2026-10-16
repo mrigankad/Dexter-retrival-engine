@@ -118,7 +118,7 @@ class IngestionPipeline:
                     "total_pages": c.total_pages,
                     "chunk_index": c.chunk_index,
                     "content_type": c.content_type.value,
-                    "chunk_level": c.chunk_level.value,
+                    "chunk_level": c.metadata.get("chunk_level") or c.chunk_level.value,
                     "section_path": c.section_path,
                     "title": c.metadata.get("title"),
                     "tenant_id": job.tenant_id,
