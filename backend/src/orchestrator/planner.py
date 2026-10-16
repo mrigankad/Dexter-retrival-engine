@@ -74,6 +74,17 @@ class QueryPlanner:
         if decision.intent == Intent.CHAT:
             return QueryPlan(intent=Intent.CHAT, query_type="chat", steps=[PlanStep(id="s1", tool="chat.respond", goal=query)],
                              synthesis_strategy="direct", reasoning="conversational")
+        if decision.intent == Intent.DATA:
+            return QueryPlan(intent=Intent.DATA, query_type=decision.query_type,  # type: ignore[arg-type]
+                             steps=[PlanStep(id="d1", tool="data.query", goal=query, keywords=decision.keywords)],
+                             synthesis_strategy="bullet_analysis" if decision.complex else "summary",
+                             max_tool_calls=settings.max_tool_calls, reasoning="live data question")
+        if decision.intent == Intent.HYBRID:
+            return QueryPlan(intent=Intent.HYBRID, query_type=decision.query_type,  # type: ignore[arg-type]
+                             steps=[PlanStep(id="d1", tool="data.query", goal=query, keywords=decision.keywords),
+                                    PlanStep(id="s1", tool="knowledge.retrieve", goal=query, keywords=decision.keywords)],
+                             synthesis_strategy="bullet_analysis", max_tool_calls=settings.max_tool_calls,
+                             reasoning="measured facts from data, explanation from documents")
         if decision.intent in (Intent.ACTION, Intent.CLARIFICATION):
             return QueryPlan(intent=decision.intent, query_type=decision.query_type, steps=[],  # type: ignore[arg-type]
                              needs_clarification=decision.intent == Intent.CLARIFICATION,

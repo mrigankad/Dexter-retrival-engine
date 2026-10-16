@@ -21,7 +21,7 @@ class StreamEvent(BaseModel):
 
 class ProgressEvent(BaseModel):
     stage: Literal[
-        "understanding", "routing", "planning", "retrieving", "reranking",
+        "understanding", "routing", "planning", "retrieving", "reranking", "querying_data",
         "found_sources", "synthesizing", "verifying", "finalizing",
     ]
     label: str

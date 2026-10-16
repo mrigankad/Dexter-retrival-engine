@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import AsyncGenerator, Dict, List, Optional
 
 from src.contracts import (
-    Answer, AnswerDeltaEvent, Confidence, DoneEvent, ErrorEvent, EvidenceEvent, Intent, ProgressEvent,
+    Answer, AnswerBlock, AnswerDeltaEvent, Confidence, DoneEvent, ErrorEvent, EvidenceEvent, Intent, ProgressEvent,
     QueryPlan, RetrievalFilters, StreamEvent, TraceRecord, WarningEvent,
 )
 from src.core.config import settings
@@ -109,6 +109,7 @@ class RetrievalEngine:
         confidence = Confidence.LOW
         warnings: List[str] = []
         citations = []
+        blocks: List[AnswerBlock] = []
 
         try:
             yield ProgressEvent(stage="understanding", label="Understanding question").to_stream()
@@ -118,8 +119,13 @@ class RetrievalEngine:
                 return
 
             # 1. Route
+            data_available = False
+            try:
+                data_available = self.executor.data_service.available
+            except Exception:
+                data_available = False
             if use_rag:
-                decision = await self.router.route(query, has_documents=has_documents, usage=usage)
+                decision = await self.router.route(query, has_documents=has_documents, usage=usage, data_available=data_available)
             else:
                 decision = RouteDecision(Intent.CHAT, 1.0, "RAG disabled by request", "chat")
             intent = decision.intent
@@ -144,7 +150,7 @@ class RetrievalEngine:
                     text_parts.append(token)
                     yield AnswerDeltaEvent(text=token).to_stream()
                 confidence = Confidence.HIGH
-            elif not has_documents and self.adapter.name == "local":
+            elif not has_documents and self.adapter.name == "local" and intent == Intent.KNOWLEDGE:
                 msg = ("No documents have been indexed yet, so I can't answer this from your knowledge base. "
                        "Upload a document first (Documents page) and ask again once it shows as completed.")
                 text_parts.append(msg)
@@ -163,15 +169,26 @@ class RetrievalEngine:
                         yield ProgressEvent(stage="planning", label=f"Breaking the question into {len(plan.steps)} parts",
                                             detail={"sub_questions": [s.goal for s in plan.steps]}).to_stream()
                     # 3. Execute
-                    yield ProgressEvent(stage="retrieving", label=f"Searching {self.adapter.name} knowledge").to_stream()
+                    if any(s.tool == "data.query" for s in plan.steps):
+                        yield ProgressEvent(stage="querying_data", label="Querying live data").to_stream()
+                    if any(s.tool == "knowledge.retrieve" for s in plan.steps):
+                        yield ProgressEvent(stage="retrieving", label=f"Searching {self.adapter.name} knowledge").to_stream()
                     execution = await self.executor.execute(
-                        plan, filters=filters, top_k=top_k, reasoning_effort=reasoning_effort,
+                        plan, filters=filters, top_k=top_k, reasoning_effort=reasoning_effort, usage=usage,
                     )
                     warnings.extend(execution.warnings)
                     for w in execution.warnings:
                         yield WarningEvent(message=w).to_stream()
+                    for block in execution.blocks:
+                        blocks.append(AnswerBlock(type=block["type"], data=block["data"]))
+                        yield StreamEvent(event=block["type"], data=block["data"])
 
-                    if execution.is_empty:
+                    if execution.is_empty and execution.clarification:
+                        msg = execution.clarification
+                        text_parts.append(msg)
+                        yield AnswerDeltaEvent(text=msg).to_stream()
+                        confidence = Confidence.MEDIUM
+                    elif execution.is_empty:
                         yield ProgressEvent(stage="found_sources", label="No relevant sources found").to_stream()
                         msg = ("I couldn't find anything in the indexed documents that answers this. "
                                "Try rephrasing, or check that the relevant document has been uploaded and processed.")
@@ -212,7 +229,7 @@ class RetrievalEngine:
             await self._emit_trace(trace)
             self.last_answer = Answer(
                 answer_id=answer_id, session_id=session_id, text=final_text, intent=intent, confidence=confidence,
-                evidence=execution.evidence if execution else [], citations=citations, latency_ms=latency,
+                blocks=blocks, evidence=execution.evidence if execution else [], citations=citations, latency_ms=latency,
                 trace_id=trace_id, route="rag_pipeline" if execution else intent.value.lower(), usage=usage.to_dict(),
                 warnings=warnings,
             )

@@ -203,6 +203,13 @@ class Settings(BaseSettings):
     mcp_timeout: int = Field(default=60)
 
     # ==========================================
+    # Structured data gateway (data.query)
+    # ==========================================
+    data_gateway_enabled: bool = Field(default=True)
+    data_connections_json: str = Field(default="", description='JSON list of DataConnection objects, e.g. [{"id":"sales","name":"SalesDB","dialect":"postgres","url":"env:SALES_DB_URL"}]')
+    data_max_sql_calls: int = Field(default=3, description="Max data.query calls per question")
+
+    # ==========================================
     # Connectors
     # ==========================================
     connector_scheduler_enabled: bool = Field(default=True, description="Run scheduled connector syncs inside the API process")

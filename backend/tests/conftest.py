@@ -44,6 +44,8 @@ async def services(fake_llm):
     from src.knowledge import reset_registry
     from src.orchestrator.engine import set_engine
     from src.api.v1.chat_routes import reset_engine_cache
+    from src.data_gateway.connections import reset_connection_manager
+    from src.data_gateway.service import set_data_query_service
     from src.infrastructure.database import init_db, close_db
     from src.infrastructure.database.session_manager import reset_db_for_tests
 
@@ -57,6 +59,8 @@ async def services(fake_llm):
     reset_registry()
     set_engine(None)
     reset_engine_cache()
+    reset_connection_manager()
+    set_data_query_service(None)
     await init_db()
     await reset_db_for_tests()
     await init_db()
@@ -70,6 +74,8 @@ async def services(fake_llm):
     set_embedding_service(None)
     set_reranker_service(None)
     set_llm_service(None)
+    reset_connection_manager()
+    set_data_query_service(None)
 
 
 @pytest_asyncio.fixture
@@ -123,3 +129,32 @@ async def auth_headers(client):
     r = await client.post("/auth/login", json={"username": "admin", "password": "admin123"})
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+@pytest_asyncio.fixture
+async def demo_db(services, tmp_path):
+    """SQLite sales database registered as data connection 'sales'."""
+    import sqlite3
+    from src.data_gateway import DataConnection
+    from src.data_gateway.store import save_connection
+
+    path = tmp_path / "sales.db"
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, region TEXT, email TEXT, ssn TEXT);
+        CREATE TABLE sales_orders (id INTEGER PRIMARY KEY, customer_id INTEGER REFERENCES customers(id),
+            created_at TEXT NOT NULL, net_amount REAL NOT NULL, status TEXT, product TEXT);
+        CREATE TABLE payroll (id INTEGER PRIMARY KEY, employee TEXT, salary REAL);
+        INSERT INTO customers VALUES (1,'ACME','EMEA','a@acme.test','111'),(2,'Globex','APAC','g@globex.test','222'),(3,'Initech','AMER','i@initech.test','333');
+        INSERT INTO sales_orders VALUES
+          (1,1,'2026-08-05',1200,'OPEN','Widget'),(2,1,'2026-09-10',800,'CLOSED','Widget'),(3,2,'2026-09-15',2500,'CLOSED','Gadget'),
+          (4,3,'2026-09-20',400,'OPEN','Widget'),(5,2,'2026-10-02',3100,'CLOSED','Gadget'),(6,1,'2026-10-03',150,'OPEN','Gizmo');
+        INSERT INTO payroll VALUES (1,'Alice',100000);
+    """)
+    con.commit()
+    con.close()
+    conn = DataConnection(id="sales", name="SalesDB", dialect="sqlite", url=f"sqlite:///{path}",
+                          allowed_tables=["customers", "sales_orders"], denied_columns=["customers.ssn", "customers.email"],
+                          default_row_limit=100, hard_row_limit=1000, timeout_seconds=5)
+    await save_connection(conn, "test")
+    return conn

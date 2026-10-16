@@ -212,5 +212,42 @@ class ConnectorRun(Base):
     errors = Column(JSON, default=list)
 
 
+class DataConnectionRow(Base):
+    __tablename__ = "data_connections"
+
+    id = Column(String(64), primary_key=True)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    config_json = Column(JSON, default=dict)        # DataConnection (url may be env:VAR)
+    enabled = Column(Boolean, default=True)
+    created_by = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class SemanticModelRow(Base):
+    __tablename__ = "semantic_models"
+
+    connection_id = Column(String(64), primary_key=True)
+    model_json = Column(JSON, default=dict)         # SemanticModel
+    updated_by = Column(String(64), nullable=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class DataQueryLog(Base):
+    __tablename__ = "data_query_log"
+
+    id = Column(String(64), primary_key=True)        # query_id
+    connection_id = Column(String(64), nullable=True, index=True)
+    user_id = Column(String(64), nullable=True, index=True)
+    question = Column(Text, nullable=True)
+    sql = Column(Text, nullable=True)
+    status = Column(String(16), default="ok")
+    row_count = Column(Integer, default=0)
+    latency_ms = Column(Float, default=0.0)
+    source = Column(String(16), default="generated")
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
+
+
 Index("ix_document_chunks_doc_idx", DocumentChunk.document_id, DocumentChunk.chunk_index)
 Index("ix_connector_items_ext", ConnectorItem.connector_id, ConnectorItem.external_id, unique=True)

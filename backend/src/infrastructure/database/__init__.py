@@ -13,6 +13,9 @@ from .models import (
     ConnectorRow,
     ConnectorItem,
     ConnectorRun,
+    DataConnectionRow,
+    SemanticModelRow,
+    DataQueryLog,
 )
 from .session_manager import (
     get_engine,
@@ -24,6 +27,6 @@ from .session_manager import (
 )
 
 __all__ = [
-    "Base", "User", "ChatSession", "ChatMessage", "Document", "DocumentChunk", "Evaluation", "Trace", "Feedback", "ConnectorRow", "ConnectorItem", "ConnectorRun",
+    "Base", "User", "ChatSession", "ChatMessage", "Document", "DocumentChunk", "Evaluation", "Trace", "Feedback", "ConnectorRow", "ConnectorItem", "ConnectorRun", "DataConnectionRow", "SemanticModelRow", "DataQueryLog",
     "get_engine", "get_session_factory", "get_session", "session_scope", "init_db", "close_db",
 ]

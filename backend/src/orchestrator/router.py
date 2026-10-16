@@ -33,7 +33,11 @@ class RouteDecision:
 _GREETING = re.compile(r"^\s*(hi|hello|hey|thanks?|thank you|good (morning|afternoon|evening)|ok|okay|bye)\b(\s+(there|bodham|again|you|a lot|very much|so much))?[\s!.?]*$", re.I)
 _SMALLTALK = re.compile(r"\b(who are you|what can you do|your name|how are you|help me|what is this)\b", re.I)
 _ACTION = re.compile(r"^\s*(please\s+)?(send|email|forward|schedule|book|delete|remove|update|edit|create a ticket|approve|pay|purchase|order|post|publish)\b", re.I)
-_DATA = re.compile(r"\b(revenue|sales|orders?|customers?|kpi|last (month|quarter|week)|this (month|quarter|year)|yesterday|sum of|count of|how many (orders|customers|units))\b", re.I)
+_DATA = re.compile(r"\b(revenue|sales|orders?|customers?|invoices?|kpis?|units sold|headcount|churn|margin|"
+                   r"last (month|quarter|week|year)|this (month|quarter|year|week)|yesterday|year to date|ytd|"
+                   r"sum of|count of|total of|average|top \d+|how many|how much|by (region|month|quarter|customer|product|plant))\b", re.I)
+_PLOT = re.compile(r"\b(plot|chart|graph|visuali[sz]e|trend of)\b", re.I)
+_EXPLAIN = re.compile(r"\b(why|explain|reason|cause|what drove|drivers?)\b", re.I)
 _DOC_HINT = re.compile(r"\b(document|file|report|policy|contract|pdf|section|page|according to|uploaded|manual|guideline|spec)\b", re.I)
 
 _COMPARATIVE = re.compile(r"\b(compare|comparison|versus|vs\.?|differ|difference|better|worse|against)\b", re.I)
@@ -73,10 +77,12 @@ def classify_query_type(query: str) -> str:
 
 
 ROUTER_PROMPT = """Classify the user's message for a retrieval assistant that answers from uploaded documents.
-Return ONLY JSON: {"intent": "CHAT" | "KNOWLEDGE" | "ACTION" | "CLARIFICATION", "confidence": 0-1, "reason": "..."}
+Return ONLY JSON: {"intent": "CHAT" | "KNOWLEDGE" | "DATA" | "HYBRID" | "ACTION" | "CLARIFICATION", "confidence": 0-1, "reason": "..."}
 
 - CHAT: greetings, small talk, questions about the assistant itself, or general knowledge that needs no documents.
 - KNOWLEDGE: anything that should be answered from the user's documents or knowledge base (default when unsure).
+- DATA: a measurable business question answered from the live database (sums, counts, trends, top-N).
+- HYBRID: needs both live numbers and document explanation.
 - ACTION: asks to perform a side effect (send, delete, schedule, buy).
 - CLARIFICATION: too ambiguous to search (e.g. a single word with no context).
 
@@ -94,7 +100,7 @@ class QueryRouter:
             self._llm = get_llm_service()
         return self._llm
 
-    def route_rules(self, query: str, has_documents: bool = True) -> Optional[RouteDecision]:
+    def route_rules(self, query: str, has_documents: bool = True, data_available: bool = False) -> Optional[RouteDecision]:
         q = query.strip()
         qt = classify_query_type(q)
         keywords = extract_keywords(q)
@@ -108,12 +114,20 @@ class QueryRouter:
         if word_count == 1 and not _DOC_HINT.search(q) and len(q) < 4:
             return RouteDecision(Intent.CLARIFICATION, 0.7, "single short token", "lookup", keywords=keywords)
         complex_ = qt != "lookup" or word_count > 18 or _AGGREGATION.search(q) is not None
+        if data_available and _DATA.search(q):
+            doc_like = _DOC_HINT.search(q) is not None
+            explain = _EXPLAIN.search(q) is not None
+            if doc_like or explain:
+                return RouteDecision(Intent.HYBRID, 0.75, "numbers from data plus explanation from documents", qt, True, keywords)
+            return RouteDecision(Intent.DATA, 0.8, "measurable business question", "aggregation" if _AGGREGATION.search(q) else qt,
+                                 _PLOT.search(q) is not None, keywords)
         if _DOC_HINT.search(q) or q.endswith("?") or word_count >= 4:
             return RouteDecision(Intent.KNOWLEDGE, 0.85 if _DOC_HINT.search(q) else 0.7, "document-style question", qt, complex_, keywords)
         return None  # ambiguous → LLM
 
-    async def route(self, query: str, has_documents: bool = True, usage: Optional[LLMUsage] = None) -> RouteDecision:
-        decision = self.route_rules(query, has_documents)
+    async def route(self, query: str, has_documents: bool = True, usage: Optional[LLMUsage] = None,
+                    data_available: bool = False) -> RouteDecision:
+        decision = self.route_rules(query, has_documents, data_available)
         if decision is not None and (decision.confidence >= 0.7 or not self.use_llm):
             return decision
         if not self.use_llm:

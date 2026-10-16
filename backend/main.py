@@ -51,6 +51,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             setup_telemetry(app)
         except Exception as exc:
             logger.warning("Telemetry setup failed", error=str(exc))
+    try:
+        from src.data_gateway.store import load_from_db
+        loaded = await load_from_db()
+        if loaded:
+            logger.info("Data connections loaded", count=loaded)
+    except Exception as exc:
+        logger.warning("Data connections could not be loaded", error=str(exc))
     from src.connectors.scheduler import start_scheduler, stop_scheduler
     if not settings.is_test:
         start_scheduler()
@@ -122,6 +129,7 @@ from src.api.v1.agents_routes import router as agents_router  # noqa: E402
 from src.api.v1.auth_routes import router as auth_router  # noqa: E402
 from src.api.v1.chat_routes import router as chat_router  # noqa: E402
 from src.api.v1.connector_routes import router as connector_router  # noqa: E402
+from src.api.v1.data_routes import router as data_router  # noqa: E402
 from src.api.v1.evaluation_routes import router as evaluation_router  # noqa: E402
 from src.api.v1.health_routes import router as health_router  # noqa: E402
 from src.api.v1.ingestion_routes import router as ingestion_router  # noqa: E402
@@ -137,6 +145,7 @@ for prefix in ("", "/v1"):
     app.include_router(knowledge_router, prefix=f"{prefix}/knowledge", tags=["Knowledge" + tag_suffix], include_in_schema=not prefix)
     app.include_router(trace_router, prefix=f"{prefix}/traces", tags=["Traces" + tag_suffix], include_in_schema=not prefix)
     app.include_router(connector_router, prefix=f"{prefix}/connectors", tags=["Connectors" + tag_suffix], include_in_schema=not prefix)
+    app.include_router(data_router, prefix=f"{prefix}/data", tags=["Structured data" + tag_suffix], include_in_schema=not prefix)
     app.include_router(evaluation_router, prefix=f"{prefix}/evaluations", tags=["Evaluation" + tag_suffix], include_in_schema=not prefix)
 app.include_router(agents_router, tags=["Multi-Agent (experimental)"])
 
