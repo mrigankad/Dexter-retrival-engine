@@ -82,27 +82,21 @@ async def test_engine_emits_otel_spans(indexed_policy, services, monkeypatch):
 
 
 def test_otlp_exporter_factory_http(monkeypatch):
-    pytest.importorskip("opentelemetry.exporter.otlp.proto.http.trace_exporter")
+    mod = pytest.importorskip("opentelemetry.exporter.otlp.proto.http.trace_exporter")
     from src.core import telemetry
+
+    captured = {}
+
+    class StubExporter:
+        def __init__(self, endpoint=None, headers=None, **kw):
+            captured.update({"endpoint": endpoint, "headers": headers})
+
+    monkeypatch.setattr(mod, "OTLPSpanExporter", StubExporter)
     monkeypatch.setattr(settings, "otlp_protocol", "http")
     monkeypatch.setattr(settings, "otlp_endpoint", "https://cloud.langfuse.com/api/public/otel/v1/traces")
     monkeypatch.setattr(settings, "otlp_headers", "Authorization=Basic abc, x-langfuse-ingestion-version=4")
-    exporter = telemetry._make_span_exporter()
-    assert exporter._endpoint.endswith("/otel/v1/traces")
-
-    def find_headers(obj, depth=0):
-        """Locate the header mapping wherever this SDK version keeps it (exporter, client or session)."""
-        if depth > 3 or obj is None:
-            return None
-        for value in vars(obj).values() if hasattr(obj, "__dict__") else []:
-            if hasattr(value, "get") and hasattr(value, "keys") and "Authorization" in value:
-                return value
-            found = find_headers(value, depth + 1)
-            if found is not None:
-                return found
-        return None
-
-    headers = find_headers(exporter)
-    assert headers is not None, "exporter did not receive the configured headers"
-    assert headers.get("Authorization") == "Basic abc" and headers.get("x-langfuse-ingestion-version") == "4"
+    assert isinstance(telemetry._make_span_exporter(), StubExporter)
+    assert captured["endpoint"].endswith("/otel/v1/traces")
+    assert captured["headers"] == {"Authorization": "Basic abc", "x-langfuse-ingestion-version": "4"}
     assert telemetry._parse_headers("a=1, b = x=y") == {"a": "1", "b": "x=y"}
+    assert telemetry._parse_headers("") == {}
