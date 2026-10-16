@@ -169,7 +169,7 @@ function EmptyState({ onExampleClick }: { onExampleClick: (q: string) => void })
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-2">
-                Welcome to <span className="gradient-text">RAG Assistant</span>
+                Welcome to <span className="gradient-text">Bodham</span>
             </h2>
 
             <p className="text-dark-400 max-w-md mb-8 leading-relaxed">

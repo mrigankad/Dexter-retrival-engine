@@ -156,7 +156,7 @@ export function Layout() {
                     >
                         <Bars3Icon className="w-6 h-6" />
                     </button>
-                    <h1 className="text-lg font-bold gradient-text">RAG Assistant</h1>
+                    <h1 className="text-lg font-bold gradient-text">Bodham</h1>
                     <div className="w-10" /> {/* Spacer */}
                 </header>
 

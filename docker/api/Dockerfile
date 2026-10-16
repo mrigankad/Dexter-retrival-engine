@@ -1,5 +1,5 @@
 # ============================================
-# Dexter Retrieval Engine - API image
+# Bodham Retrieval Engine - API image
 # ============================================
 FROM python:3.12-slim AS builder
 WORKDIR /app

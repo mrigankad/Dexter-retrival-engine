@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI service for the Dexter Retrieval Engine. See [`../docs/ARCHITECTURE_V3.md`](../docs/ARCHITECTURE_V3.md) for the design.
+FastAPI service for the Bodham Retrieval Engine. See [`../docs/ARCHITECTURE_V3.md`](../docs/ARCHITECTURE_V3.md) for the design.
 
 ```
 main.py                 application entry point

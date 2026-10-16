@@ -55,6 +55,8 @@ class IngestionJob(BaseModel):
     filename: str
     user_id: Optional[str] = None
     tenant_id: Optional[str] = None
+    visibility: str = "tenant"                     # private | tenant | public
+    acl: List[str] = Field(default_factory=list)   # principals allowed to retrieve the chunks
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 

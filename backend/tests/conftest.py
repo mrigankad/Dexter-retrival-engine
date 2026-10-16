@@ -89,12 +89,33 @@ async def indexed_policy(services):
 
 @pytest_asyncio.fixture
 async def client(services):
+    """ASGI test client. The app lifespan runs in a dedicated task because the MCP session
+    manager's cancel scope must be entered and exited in the same task."""
     import httpx
     from main import app
 
-    async with app.router.lifespan_context(app):
+    started, stop = asyncio.Event(), asyncio.Event()
+    failure: list = []
+
+    async def runner():
+        try:
+            async with app.router.lifespan_context(app):
+                started.set()
+                await stop.wait()
+        except Exception as exc:  # pragma: no cover
+            failure.append(exc)
+            started.set()
+
+    task = asyncio.create_task(runner())
+    await started.wait()
+    if failure:
+        raise failure[0]
+    try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
             yield c
+    finally:
+        stop.set()
+        await task
 
 
 @pytest_asyncio.fixture

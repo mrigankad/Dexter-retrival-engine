@@ -6,7 +6,7 @@ for the RAG backend API.
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import List, Optional
 
 import bcrypt
 from jose import JWTError, jwt
@@ -16,12 +16,16 @@ from .config import settings
 
 
 class TokenData(BaseModel):
-    """JWT token payload data."""
+    """Verified identity extracted from a bearer token (local JWT or Entra ID)."""
     user_id: str
     username: str
     email: Optional[str] = None
     exp: datetime
     token_type: str = "access"
+    tenant_id: Optional[str] = None
+    role: str = "user"
+    groups: List[str] = []
+    issuer: str = "local"
 
 
 class TokenPair(BaseModel):
@@ -69,6 +73,9 @@ def create_access_token(
     username: str,
     email: Optional[str] = None,
     expires_delta: Optional[timedelta] = None,
+    tenant_id: Optional[str] = None,
+    role: str = "user",
+    groups: Optional[List[str]] = None,
 ) -> str:
     """
     Create a JWT access token.
@@ -96,6 +103,9 @@ def create_access_token(
         "exp": expire,
         "iat": datetime.utcnow(),
         "type": "access",
+        "tenant_id": tenant_id,
+        "role": role,
+        "groups": list(groups or []),
     }
     
     return jwt.encode(
@@ -147,6 +157,9 @@ def create_token_pair(
     user_id: str,
     username: str,
     email: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+    role: str = "user",
+    groups: Optional[List[str]] = None,
 ) -> TokenPair:
     """
     Create both access and refresh tokens.
@@ -159,7 +172,7 @@ def create_token_pair(
     Returns:
         TokenPair with access_token, refresh_token, and metadata
     """
-    access_token = create_access_token(user_id, username, email)
+    access_token = create_access_token(user_id, username, email, tenant_id=tenant_id, role=role, groups=groups)
     refresh_token = create_refresh_token(user_id, username)
     
     return TokenPair(
@@ -202,6 +215,10 @@ def decode_token(token: str) -> Optional[TokenData]:
             email=email,
             exp=exp,
             token_type=token_type,
+            tenant_id=payload.get("tenant_id"),
+            role=payload.get("role") or "user",
+            groups=[str(g) for g in (payload.get("groups") or [])],
+            issuer="local",
         )
     except JWTError:
         return None

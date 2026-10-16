@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
 from .logger import get_logger
-from .security import TokenData, verify_access_token
+from .security import TokenData
+from .auth import verify_bearer
 
 logger = get_logger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -47,7 +48,7 @@ async def get_current_user(
     if credentials is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing authentication credentials",
                             headers={"WWW-Authenticate": "Bearer"})
-    token_data = verify_access_token(credentials.credentials)
+    token_data = verify_bearer(credentials.credentials)
     if token_data is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token",
                             headers={"WWW-Authenticate": "Bearer"})
@@ -59,7 +60,7 @@ async def get_current_user_optional(
 ) -> Optional[TokenData]:
     if credentials is None:
         return None
-    return verify_access_token(credentials.credentials)
+    return verify_bearer(credentials.credentials)
 
 
 async def get_chat_user(
@@ -73,7 +74,14 @@ async def get_chat_user(
     return user
 
 
+async def require_admin(user: Annotated[TokenData, Depends(get_current_user)]) -> TokenData:
+    if (user.role or "").lower() != "admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin role required")
+    return user
+
+
 CurrentUser = Annotated[TokenData, Depends(get_current_user)]
+AdminUser = Annotated[TokenData, Depends(require_admin)]
 OptionalUser = Annotated[Optional[TokenData], Depends(get_current_user_optional)]
 ChatUser = Annotated[Optional[TokenData], Depends(get_chat_user)]
 

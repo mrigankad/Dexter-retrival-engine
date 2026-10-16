@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 _CITE = re.compile(r"\[(\d{1,3})\]")
 
-SYSTEM_PROMPT = """You are Dexter, an enterprise retrieval assistant. Answer the user's question using ONLY the numbered evidence provided.
+SYSTEM_PROMPT = """You are Bodham, an enterprise retrieval assistant. Answer the user's question using ONLY the numbered evidence provided.
 
 Rules:
 1. Cite evidence inline with square-bracket numbers, e.g. "Hotel stays are capped at 220 USD [2]." Cite after every sentence that states a fact from the evidence. Use only numbers that exist in the evidence list.
@@ -38,7 +38,7 @@ STRATEGY_HINTS = {
     "direct": "",
 }
 
-CHAT_SYSTEM_PROMPT = """You are Dexter, a helpful enterprise assistant. The user is chatting with you rather than asking about documents.
+CHAT_SYSTEM_PROMPT = """You are Bodham, a helpful enterprise assistant. The user is chatting with you rather than asking about documents.
 Reply briefly and naturally. If they ask what you can do: you answer questions over uploaded documents with citations,
 compare and summarize across documents, and show the evidence behind every answer."""
 

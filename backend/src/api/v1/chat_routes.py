@@ -111,12 +111,15 @@ async def _run(request: ChatRequest, user, session_id: str) -> AsyncGenerator[St
         history = await memory.get_context_messages(session_id, limit=10)
     await memory.add_message(session_id, "user", request.query, user_id)
 
-    filters = RetrievalFilters(document_ids=request.document_ids or None)
+    from src.core.access import access_filters_for
+    filters = access_filters_for(user)                 # derived from the verified token, never from the client
+    filters.document_ids = request.document_ids or None
     engine = _engine_for(request.backend)
     engine.last_answer = None
     yield StreamEvent(event="start", data=session_id)
     async for event in engine.answer_stream(
-        request.query, session_id=session_id, user_id=user_id, chat_history=history, filters=filters,
+        request.query, session_id=session_id, user_id=user_id, tenant_id=user.tenant_id if user else None,
+        chat_history=history, filters=filters,
         use_rag=request.use_rag, top_k=request.top_k, reasoning_effort=request.reasoning_effort,
         has_documents=await _has_documents(),
     ):

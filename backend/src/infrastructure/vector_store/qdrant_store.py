@@ -133,6 +133,7 @@ class QdrantStore:
             "user_id": models.PayloadSchemaType.KEYWORD,
             "content_type": models.PayloadSchemaType.KEYWORD,
             "source": models.PayloadSchemaType.KEYWORD,
+            "acl": models.PayloadSchemaType.KEYWORD,
             "page": models.PayloadSchemaType.INTEGER,
         }
         for field, schema in index_specs.items():
@@ -205,6 +206,9 @@ class QdrantStore:
             must.append(models.FieldCondition(key="content_type", match=models.MatchAny(any=list(filters.content_types))))
         if filters.page is not None:
             must.append(models.FieldCondition(key="page", match=models.MatchValue(value=int(filters.page))))
+        if filters.principals:
+            # chunk is visible when any of the caller's principals is in its acl list
+            must.append(models.FieldCondition(key="acl", match=models.MatchAny(any=list(filters.principals))))
         for key, value in (filters.metadata or {}).items():
             if isinstance(value, list):
                 must.append(models.FieldCondition(key=key, match=models.MatchAny(any=value)))

@@ -38,6 +38,9 @@ class MockKnowledgeAdapter(KnowledgeAdapter):
         for d in self._docs:
             if request.filters.document_ids and d["document_id"] not in request.filters.document_ids:
                 continue
+            acl = d["metadata"].get("acl")
+            if request.filters.principals and acl and not set(acl) & set(request.filters.principals):
+                continue
             d_tokens = set(tokenize(d["content"]))
             overlap = len(q_tokens & d_tokens)
             if overlap == 0:

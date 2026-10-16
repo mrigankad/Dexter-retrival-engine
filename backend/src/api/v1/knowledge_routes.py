@@ -12,7 +12,8 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from src.contracts import RetrievalFilters, RetrievalRequest
+from src.contracts import RetrievalRequest
+from src.core.access import access_filters_for
 from src.core.config import settings
 from src.core.dependency_injection import ChatUser
 from src.knowledge import get_knowledge_adapter, list_backends
@@ -50,9 +51,11 @@ async def retrieve(body: RetrieveIn, user: ChatUser):
         adapter = get_knowledge_adapter(body.backend)
     except KeyError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+    filters = access_filters_for(user)
+    filters.document_ids = body.document_ids or None
     request = RetrievalRequest(
         query=body.query, top_k=body.top_k, rerank=body.rerank, reasoning_effort=body.reasoning_effort,  # type: ignore[arg-type]
-        alternate_queries=body.alternate_queries, filters=RetrievalFilters(document_ids=body.document_ids or None),
+        alternate_queries=body.alternate_queries, filters=filters,
     )
     try:
         result = await adapter.retrieve(request)

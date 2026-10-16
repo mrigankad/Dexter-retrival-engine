@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="./assets/images/mascot.png" alt="Dexter Mascot" width="160"/>
+<img src="./assets/images/mascot.png" alt="Bodham Mascot" width="160"/>
 
-# Dexter Retrieval Engine
+# Bodham Retrieval Engine
 
 **A pluggable enterprise retrieval engine: hybrid search, reranking, planned multi-hop retrieval, cited answers, traces — on your own Qdrant index today, on Microsoft Foundry IQ or any MCP knowledge server tomorrow.**
 
@@ -19,7 +19,7 @@
 
 ## What it does
 
-Ask a question; Dexter routes it, plans it, retrieves evidence from the configured **knowledge backend**, writes one answer with validated `[n]` citations, and records a trace you can audit.
+Ask a question; Bodham routes it, plans it, retrieves evidence from the configured **knowledge backend**, writes one answer with validated `[n]` citations, and records a trace you can audit.
 
 ```
 question ─▶ route ─▶ plan ─▶ retrieve (parallel) ─▶ evidence [1..n] ─▶ synthesize once ─▶ answer + citations + trace
@@ -32,7 +32,10 @@ question ─▶ route ─▶ plan ─▶ retrieve (parallel) ─▶ evidence [1.
 * **Structure-aware ingestion** – PDF/DOCX/MD/TXT/HTML/CSV parsing, heading-aware chunks with contextual headers, tables kept intact, page-level citations.
 * **Deterministic-first orchestration** – rules route chat / knowledge / action / clarification; only complex questions pay for an LLM plan (decomposition + alternate phrasings).
 * **Grounded synthesis** – single generation from numbered evidence; citations that point nowhere are stripped; confidence is derived, not asserted.
-* **Swappable backends** – `KNOWLEDGE_BACKEND=local|foundry_iq|mock`, optional fallback backend, per-request override. Foundry IQ adapter speaks the 2026 Azure AI Search agentic-retrieval API and forwards the user token for ACL trimming.
+* **Swappable backends** – `KNOWLEDGE_BACKEND=local|foundry_iq|mcp|mock`, optional fallback backend, per-request override. The Foundry IQ adapter speaks the 2026 Azure AI Search agentic-retrieval API and forwards the user token for ACL trimming; the MCP adapter consumes any MCP knowledge server (Foundry IQ's `/mcp`, another Bodham, Qdrant MCP, Pinecone, Ragie...).
+* **MCP server** – Bodham is itself an MCP server at `/mcp` (streamable HTTP) exposing `knowledge_retrieve`, `list_documents` and `list_backends`, so Foundry Agent Service, Claude, LangGraph or any MCP client can use it as a knowledge source.
+* **Permission model** – every chunk carries ACL principals (`user:`, `tenant:`, `group:`, `public`); retrieval and document listing filters are derived from the verified token, never from the client, and anonymous callers only see public documents. Documents are uploaded as private, tenant or public and can be shared with groups.
+* **Authentication** – local JWTs (with tenant, role and group claims and admin user management) or Microsoft Entra ID bearer tokens validated against the tenant JWKS (`AUTH_MODE=entra|both`).
 * **Observability & evaluation** – per-query traces (`/traces`), feedback, an offline eval harness (hit@k, MRR, context recall, citation rate, LLM-judged faithfulness) and a sample dataset.
 * **Typed streaming UI contract** – SSE events `progress`, `evidence`, `answer_delta`, `done`; the bundled React UI shows the live stage and confidence.
 
@@ -61,7 +64,16 @@ cp .env.example .env && make init    # api, worker, postgres, qdrant, redis, fro
 docker compose --profile graph --profile storage up -d   # optional Neo4j + MinIO
 ```
 
-### 3. Use Microsoft Foundry IQ as the knowledge layer
+### 3. Use Bodham from an agent over MCP
+
+```bash
+MCP_API_TOKEN=<long random string>          # or use a user's Bodham/Entra bearer token
+# MCP endpoint: http://localhost:8000/mcp   (Authorization: Bearer ...)
+```
+
+Register the URL as an MCP server in Foundry Agent Service, Claude Desktop/Code, LangGraph or Microsoft Agent Framework and allow the `knowledge_retrieve` tool.
+
+### 4. Use Microsoft Foundry IQ as the knowledge layer
 
 ```bash
 KNOWLEDGE_BACKEND=foundry_iq
@@ -71,7 +83,7 @@ FOUNDRY_IQ_KNOWLEDGE_BASE=<knowledge base name>
 FOUNDRY_IQ_REASONING_EFFORT=low      # minimal | low | medium
 ```
 
-Ingestion then stays on the Azure side (Blob / SharePoint / OneLake knowledge sources); Dexter plans, synthesises and cites. Check `GET /knowledge/backends` and `GET /knowledge/backends/foundry_iq/health`.
+Ingestion then stays on the Azure side (Blob / SharePoint / OneLake knowledge sources); Bodham plans, synthesises and cites. Check `GET /knowledge/backends` and `GET /knowledge/backends/foundry_iq/health`. Alternatively point the generic MCP adapter at the knowledge base's MCP endpoint: `KNOWLEDGE_BACKEND=mcp`, `MCP_SERVER_URL=https://<svc>.search.windows.net/knowledgebases/<kb>/mcp?api-version=2026-08-01-preview`, `MCP_TOOL_NAME=knowledge_base_retrieve`, `MCP_AUTH_TOKEN=<Entra token>`.
 
 ---
 
@@ -81,11 +93,12 @@ Ingestion then stays on the Azure side (Blob / SharePoint / OneLake knowledge so
 |---|---|
 | `POST /chat` | SSE stream (default) or JSON answer; body `{query, session_id?, use_rag, document_ids?, top_k?, reasoning_effort?, backend?}` |
 | `GET /chat/sessions`, `GET/DELETE /chat/history/{id}`, `POST /chat/feedback` | conversation memory and feedback |
-| `POST /ingest`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/chunks`, `POST /documents/{id}/reprocess`, `DELETE /documents/{id}`, `GET /files/{id}` | document lifecycle |
+| `POST /ingest` (form fields `visibility`, `groups`), `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/chunks`, `PUT /documents/{id}/sharing`, `POST /documents/{id}/reprocess`, `DELETE /documents/{id}`, `GET /files/{id}` | document lifecycle and sharing |
+| `/mcp` | MCP server (streamable HTTP, bearer auth): tools `knowledge_retrieve`, `list_documents`, `list_backends` |
 | `GET /knowledge/backends`, `GET /knowledge/backends/{name}/health`, `POST /knowledge/retrieve` | backends and the raw retrieve tool (same contract a future MCP tool exposes) |
 | `GET /traces`, `GET /traces/{trace_id}` | audit: intent, plan, tool calls, latency, tokens |
 | `POST /evaluations/run`, `GET /evaluations/{message_id}` | eval harness / per-message scores |
-| `POST /auth/login|register|refresh`, `GET /auth/me`, `GET /health` | auth and health |
+| `POST /auth/login|register|refresh`, `GET /auth/me`, `GET /auth/users`, `PUT /auth/users/{username}` (admin), `GET /health` | auth, user management and health |
 
 SSE events: `start`, `progress {stage,label}`, `evidence [...]`, `sources [...]`, `answer_delta {text}`, `warning`, `done {answer_id,confidence,latency_ms,trace_id,citations,usage}`, `metadata {message_id}`, `error`.
 
@@ -106,12 +119,13 @@ make eval DATASET=evals/datasets/sample.json
 backend/
   main.py                 FastAPI app (routes at legacy paths and /v1)
   src/contracts/          typed contracts (retrieval, evidence, plan, answer, events)
-  src/core/               settings, logging, security, DI
+  src/core/               settings, logging, JWT + Entra auth, access control, DI
   src/infrastructure/     database (PostgreSQL/SQLite), vector_store (Qdrant hybrid), cache (Redis)
   src/services/llm/       NVIDIA NIM chat / embeddings / reranker clients
   src/ingestion/          parsers, hierarchical chunker, pipeline, worker
   src/retrieval/          hybrid retriever, RRF, context builder
-  src/knowledge/          KnowledgeAdapter + local / foundry_iq / mock + registry
+  src/knowledge/          KnowledgeAdapter + local / foundry_iq / mcp / mock + registry
+  src/mcp_server/         MCP server (knowledge_retrieve, list_documents, list_backends) mounted at /mcp
   src/orchestrator/       router, planner, executor, synthesizer, engine
   src/evaluation/         offline eval harness
   src/api/v1/             HTTP routes
@@ -129,7 +143,7 @@ Every setting in [`backend/src/core/config.py`](backend/src/core/config.py) is a
 
 ## Roadmap
 
-MCP server + generic MCP retriever adapter · ACL principals on chunks with mandatory filter injection · connectors (SharePoint, Google Drive, Confluence, S3) · structured-data `data.query` tool with AST-validated read-only SQL · CRAG-style iterative retrieval and graph tier behind the router · OTel/Langfuse export · notebooks, summaries, follow-ups. Details and status: [`BUILD_STATUS.md`](BUILD_STATUS.md), [`docs/ARCHITECTURE_V3.md`](docs/ARCHITECTURE_V3.md).
+Connectors (SharePoint, Google Drive, Confluence, S3) · structured-data `data.query` tool with AST-validated read-only SQL · CRAG-style iterative retrieval and graph tier behind the router · OTel/Langfuse export · notebooks, summaries, follow-ups · OAuth 2.1 on the MCP server. Details and status: [`BUILD_STATUS.md`](BUILD_STATUS.md), [`docs/ARCHITECTURE_V3.md`](docs/ARCHITECTURE_V3.md).
 
 ## License
 

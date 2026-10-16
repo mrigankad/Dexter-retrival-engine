@@ -47,7 +47,7 @@ Every claim in those files is cited inline; items that could not be verified aga
 * Hosted free tier is community-reported at ~40 requests/minute per key; plan retries and caching accordingly.
 * **Verify every model ID on build.nvidia.com before a demo**; the catalogue moves faster than docs.
 
-## 5. What this means for Dexter
+## 5. What this means for Bodham
 
 Implemented in this iteration (see [ARCHITECTURE_V3.md](ARCHITECTURE_V3.md)): the retrieval contract and adapter registry (local / Foundry IQ / mock), hybrid dense + BM25 sparse search with RRF in Qdrant, contextual chunk headers, NIM reranking with fallback, deterministic-first routing with bounded LLM planning, single synthesis with validated inline citations, per-query traces, an eval harness, and typed SSE events (`progress`, `evidence`, `answer_delta`, `done`).
 

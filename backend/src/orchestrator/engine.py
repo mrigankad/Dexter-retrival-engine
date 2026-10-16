@@ -99,7 +99,7 @@ class RetrievalEngine:
         answer_id = f"a_{uuid.uuid4().hex[:12]}"
         usage = LLMUsage()
         filters = filters or RetrievalFilters()
-        if tenant_id and not filters.tenant_id:
+        if tenant_id and not filters.tenant_id and not filters.principals and settings.acl_tenant_scoping:
             filters.tenant_id = tenant_id
         text_parts: List[str] = []
         execution: Optional[ExecutionResult] = None

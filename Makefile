@@ -1,5 +1,5 @@
 # ============================================
-# Dexter Retrieval Engine - Makefile
+# Bodham Retrieval Engine - Makefile
 # ============================================
 
 .PHONY: help build up down restart logs logs-api logs-worker ps dev dev-worker install install-optional test test-unit test-integration lint format eval clean init

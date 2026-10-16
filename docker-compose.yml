@@ -1,18 +1,33 @@
 # ============================================
-# Dexter Retrieval Engine - Docker Compose
+# Bodham Retrieval Engine - Docker Compose
 #   default profile : frontend, api, ingestion-worker, postgres, qdrant, redis
 #   --profile graph : + neo4j      (ENABLE_KNOWLEDGE_GRAPH=true)
 #   --profile storage: + minio     (ENABLE_OBJECT_STORAGE=true)
 # ============================================
 
 x-engine-env: &engine-env
-  APP_NAME: ${APP_NAME:-dexter-retrieval-engine}
+  APP_NAME: ${APP_NAME:-bodham-retrieval-engine}
   APP_ENV: ${APP_ENV:-development}
   DEBUG: ${DEBUG:-true}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   # Knowledge backend: local | foundry_iq | mock
   KNOWLEDGE_BACKEND: ${KNOWLEDGE_BACKEND:-local}
   KNOWLEDGE_FALLBACK_BACKEND: ${KNOWLEDGE_FALLBACK_BACKEND:-}
+  # MCP server / client
+  MCP_SERVER_ENABLED: ${MCP_SERVER_ENABLED:-true}
+  MCP_REQUIRE_AUTH: ${MCP_REQUIRE_AUTH:-true}
+  MCP_API_TOKEN: ${MCP_API_TOKEN:-}
+  MCP_SERVER_URL: ${MCP_SERVER_URL:-}
+  MCP_TOOL_NAME: ${MCP_TOOL_NAME:-knowledge_retrieve}
+  MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+  # Access control + auth mode
+  ACL_ENFORCEMENT: ${ACL_ENFORCEMENT:-true}
+  DEFAULT_DOCUMENT_VISIBILITY: ${DEFAULT_DOCUMENT_VISIBILITY:-tenant}
+  DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-default}
+  AUTH_MODE: ${AUTH_MODE:-local}
+  ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+  ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+  ENTRA_ADMIN_GROUP: ${ENTRA_ADMIN_GROUP:-}
   # NVIDIA NIM
   NVIDIA_API_KEY: ${NVIDIA_API_KEY}
   NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
@@ -80,12 +95,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: dexter-frontend
+    container_name: bodham-frontend
     ports:
       - "3000:80"
     depends_on:
       - api
-    networks: [dexter-network]
+    networks: [bodham-network]
     restart: unless-stopped
 
   api:
@@ -94,7 +109,7 @@ services:
       dockerfile: docker/api/Dockerfile
       args:
         INSTALL_OPTIONAL: ${INSTALL_OPTIONAL:-false}
-    container_name: dexter-api
+    container_name: bodham-api
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
@@ -105,7 +120,7 @@ services:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
       redis: { condition: service_healthy }
-    networks: [dexter-network]
+    networks: [bodham-network]
     restart: unless-stopped
 
   ingestion-worker:
@@ -114,7 +129,7 @@ services:
       dockerfile: docker/ingestion/Dockerfile
       args:
         INSTALL_OPTIONAL: ${INSTALL_OPTIONAL:-false}
-    container_name: dexter-ingestion-worker
+    container_name: bodham-ingestion-worker
     environment:
       <<: *engine-env
     volumes:
@@ -123,12 +138,12 @@ services:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
       redis: { condition: service_healthy }
-    networks: [dexter-network]
+    networks: [bodham-network]
     restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
-    container_name: dexter-postgres
+    container_name: bodham-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ragdb}
       POSTGRES_USER: ${POSTGRES_USER:-raguser}
@@ -137,7 +152,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
-    networks: [dexter-network]
+    networks: [bodham-network]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}"]
@@ -147,13 +162,13 @@ services:
 
   qdrant:
     image: qdrant/qdrant:v1.19.2
-    container_name: dexter-qdrant
+    container_name: bodham-qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
-    networks: [dexter-network]
+    networks: [bodham-network]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/6333' || exit 1"]
@@ -164,13 +179,13 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: dexter-redis
+    container_name: bodham-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
-    networks: [dexter-network]
+    networks: [bodham-network]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -180,7 +195,7 @@ services:
 
   neo4j:
     image: neo4j:5
-    container_name: dexter-neo4j
+    container_name: bodham-neo4j
     profiles: [graph]
     ports:
       - "7474:7474"
@@ -189,12 +204,12 @@ services:
       NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-password123}
     volumes:
       - neo4j_data:/data
-    networks: [dexter-network]
+    networks: [bodham-network]
     restart: unless-stopped
 
   minio:
     image: minio/minio:latest
-    container_name: dexter-minio
+    container_name: bodham-minio
     profiles: [storage]
     ports:
       - "9000:9000"
@@ -205,18 +220,18 @@ services:
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
-    networks: [dexter-network]
+    networks: [bodham-network]
     restart: unless-stopped
 
 networks:
-  dexter-network:
+  bodham-network:
     driver: bridge
-    name: dexter-network
+    name: bodham-network
 
 volumes:
-  postgres_data: { name: dexter-postgres-data }
-  qdrant_data: { name: dexter-qdrant-data }
-  redis_data: { name: dexter-redis-data }
-  upload_data: { name: dexter-upload-data }
-  neo4j_data: { name: dexter-neo4j-data }
-  minio_data: { name: dexter-minio-data }
+  postgres_data: { name: bodham-postgres-data }
+  qdrant_data: { name: bodham-qdrant-data }
+  redis_data: { name: bodham-redis-data }
+  upload_data: { name: bodham-upload-data }
+  neo4j_data: { name: bodham-neo4j-data }
+  minio_data: { name: bodham-minio-data }

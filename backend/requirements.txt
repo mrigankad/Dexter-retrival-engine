@@ -1,5 +1,5 @@
 # ============================================
-# Dexter Retrieval Engine - core requirements
+# Bodham Retrieval Engine - core requirements
 # (optional integrations live in requirements-optional.txt)
 # ============================================
 
@@ -24,6 +24,9 @@ sqlalchemy[asyncio]>=2.0.30
 asyncpg>=0.29.0
 aiosqlite>=0.20.0
 alembic>=1.13.0
+
+# MCP (server + client)
+mcp>=2.3.0
 
 # Vector store
 qdrant-client>=1.12.0

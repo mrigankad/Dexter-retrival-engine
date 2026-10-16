@@ -23,7 +23,7 @@ async def test_root_health_and_backends(client):
     assert h["services"]["knowledge"]["status"] == "healthy"
     assert h["services"]["redis"]["status"] == "disabled"
     b = (await client.get("/knowledge/backends")).json()
-    assert {x["backend"] for x in b["backends"]} == {"local", "foundry_iq", "mock"}
+    assert {x["backend"] for x in b["backends"]} == {"local", "foundry_iq", "mcp", "mock"}
     assert (await client.get("/knowledge/backends/foundry_iq/health")).json()["status"] == "unconfigured"
     assert (await client.get("/knowledge/backends/nope/health")).status_code == 404
     assert (await client.get("/v1/health")).status_code == 200
@@ -67,8 +67,11 @@ async def test_document_lifecycle(client, auth_headers):
 @pytest.mark.asyncio
 async def test_retrieve_and_chat_json(client, auth_headers):
     await _upload(client, auth_headers)
-    r = await client.post("/knowledge/retrieve", json={"query": "hotel limit tier 1", "top_k": 2})
+    r = await client.post("/knowledge/retrieve", headers=auth_headers, json={"query": "hotel limit tier 1", "top_k": 2})
     assert r.status_code == 200 and len(r.json()["chunks"]) == 2
+    # anonymous callers only see public documents (this one is tenant-visible)
+    r = await client.post("/knowledge/retrieve", json={"query": "hotel limit tier 1", "top_k": 2})
+    assert r.status_code == 200 and r.json()["chunks"] == []
     r = await client.post("/chat", headers=auth_headers, json={"query": "What is the hotel limit per night in a Tier 1 city?", "stream": False})
     j = r.json()
     assert r.status_code == 200 and j["intent"] == "KNOWLEDGE" and j["confidence"] == "high"

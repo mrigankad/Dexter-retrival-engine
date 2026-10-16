@@ -123,6 +123,8 @@ class IngestionPipeline:
                     "title": c.metadata.get("title"),
                     "tenant_id": job.tenant_id,
                     "user_id": job.user_id,
+                    "visibility": job.visibility,
+                    "acl": list(job.acl) or ["public"],
                     "token_estimate": c.token_estimate,
                     **{k: v for k, v in job.metadata.items() if isinstance(v, (str, int, float, bool))},
                 })

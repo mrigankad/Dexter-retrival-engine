@@ -29,6 +29,8 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(32), default="user")
+    groups = Column(String(1024), default="")           # comma separated, e.g. ",finance,legal,"
+    external_id = Column(String(128), nullable=True, index=True)   # Entra object id
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
@@ -77,6 +79,8 @@ class Document(Base):
     file_type = Column(String(50), nullable=False)
     file_size = Column(Integer, nullable=False)
     status = Column(String(50), default="pending", index=True)  # pending | processing | completed | failed
+    visibility = Column(String(16), default="tenant", index=True)   # private | tenant | public
+    shared_groups = Column(String(1024), default="")                # comma separated with leading/trailing commas
     chunks_count = Column(Integer, nullable=True)
     total_pages = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=utcnow)

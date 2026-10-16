@@ -77,7 +77,7 @@ export function LoginPage() {
                         className="text-4xl font-bold text-white mb-6"
                     >
                         NVIDIA NIM Powered <br />
-                        <span className="gradient-text">RAG Assistant</span>
+                        <span className="gradient-text">Bodham</span>
                     </motion.h1>
 
                     <motion.p

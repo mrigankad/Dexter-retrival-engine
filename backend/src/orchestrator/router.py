@@ -30,7 +30,7 @@ class RouteDecision:
     method: str = "rules"
 
 
-_GREETING = re.compile(r"^\s*(hi|hello|hey|thanks?|thank you|good (morning|afternoon|evening)|ok|okay|bye)\b(\s+(there|dexter|again|you|a lot|very much|so much))?[\s!.?]*$", re.I)
+_GREETING = re.compile(r"^\s*(hi|hello|hey|thanks?|thank you|good (morning|afternoon|evening)|ok|okay|bye)\b(\s+(there|bodham|again|you|a lot|very much|so much))?[\s!.?]*$", re.I)
 _SMALLTALK = re.compile(r"\b(who are you|what can you do|your name|how are you|help me|what is this)\b", re.I)
 _ACTION = re.compile(r"^\s*(please\s+)?(send|email|forward|schedule|book|delete|remove|update|edit|create a ticket|approve|pay|purchase|order|post|publish)\b", re.I)
 _DATA = re.compile(r"\b(revenue|sales|orders?|customers?|kpi|last (month|quarter|week)|this (month|quarter|year)|yesterday|sum of|count of|how many (orders|customers|units))\b", re.I)

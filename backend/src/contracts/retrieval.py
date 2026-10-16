@@ -17,10 +17,13 @@ class RetrievalFilters(BaseModel):
     user_id: Optional[str] = None
     content_types: Optional[List[str]] = None
     page: Optional[int] = None
+    # Access control: chunk must carry at least one of these principals in its ``acl`` payload.
+    principals: Optional[List[str]] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     def is_empty(self) -> bool:
-        return not any([self.document_ids, self.tenant_id, self.user_id, self.content_types, self.page, self.metadata])
+        return not any([self.document_ids, self.tenant_id, self.user_id, self.content_types, self.page,
+                        self.principals, self.metadata])
 
 
 class RetrievalRequest(BaseModel):

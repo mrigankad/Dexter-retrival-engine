@@ -32,6 +32,9 @@ _TEST_ENV = {
     "CHUNK_SIZE": "120",
     "CHUNK_OVERLAP": "20",
     "RERANK_TOP_K": "4",
+    "MCP_REQUIRE_AUTH": "false",
+    "MCP_API_TOKEN": "test-service-token",
+    "DEFAULT_DOCUMENT_VISIBILITY": "tenant",
     "TOP_K_RETRIEVAL": "12",
 }
 for key, value in _TEST_ENV.items():

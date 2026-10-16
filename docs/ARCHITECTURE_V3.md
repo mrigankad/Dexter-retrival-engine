@@ -1,6 +1,6 @@
-# Dexter Retrieval Engine — Architecture v3
+# Bodham Retrieval Engine — Architecture v3
 
-Dexter is a pluggable enterprise retrieval engine: it ingests documents into a hybrid index, routes and plans questions, retrieves evidence from a swappable **knowledge backend**, synthesises one cited answer, and records a trace for every query. The same orchestrator can run on the built-in Qdrant index today and on Microsoft Foundry IQ (Azure AI Search agentic retrieval) or any MCP knowledge server tomorrow.
+Bodham is a pluggable enterprise retrieval engine: it ingests documents into a hybrid index, routes and plans questions, retrieves evidence from a swappable **knowledge backend**, synthesises one cited answer, and records a trace for every query. The same orchestrator can run on the built-in Qdrant index today and on Microsoft Foundry IQ (Azure AI Search agentic retrieval) or any MCP knowledge server tomorrow.
 
 ```
                       ┌──────────────────────────────────────────────────────────────┐
@@ -35,7 +35,9 @@ Dexter is a pluggable enterprise retrieval engine: it ingests documents into a h
 | `services/llm/` | NVIDIA NIM clients: chat (streaming, JSON mode, usage, model fallback chain), embeddings (batched, cached, `input_type` aware), reranker (NIM `/reranking`, optional local CrossEncoder, or none). |
 | `ingestion/` | Parsers (PDF via Docling → PyMuPDF → pypdf, DOCX, TXT/MD/HTML/CSV), hierarchical chunker, pipeline, Redis worker with inline fallback. |
 | `retrieval/` | `HybridRetriever` (multi-query → Qdrant prefetch+RRF → dedupe → rerank), RRF/dedupe helpers, `ContextBuilder` (numbered evidence within a token budget). |
-| `knowledge/` | `KnowledgeAdapter` ABC + `LocalKnowledgeAdapter`, `FoundryIQAdapter`, `MockKnowledgeAdapter`, registry (`KNOWLEDGE_BACKEND`, `KNOWLEDGE_FALLBACK_BACKEND`). |
+| `knowledge/` | `KnowledgeAdapter` ABC + `LocalKnowledgeAdapter`, `FoundryIQAdapter`, `McpKnowledgeAdapter` (any MCP knowledge server), `MockKnowledgeAdapter`, registry (`KNOWLEDGE_BACKEND`, `KNOWLEDGE_FALLBACK_BACKEND`). |
+| `mcp_server/` | Bodham as an MCP server (streamable HTTP at `/mcp`, stateless, JSON responses): tools `knowledge_retrieve`, `list_documents`, `list_backends`; bearer auth via Bodham/Entra tokens or `MCP_API_TOKEN`; the caller's identity drives the same ACL filters as the HTTP API. |
+| `core/access.py`, `core/auth.py` | Principals (`public`, `tenant:<id>`, `user:<id>`, `group:<name>`), ACL derivation for documents, mandatory retrieval filters from the verified identity (fail closed); bearer verification for local JWTs and Entra ID tokens (JWKS cache). |
 | `orchestrator/` | `QueryRouter` (rules first, cheap LLM for the ambiguous middle), `QueryPlanner` (bounded decomposition + alternate phrasings, cached), `PlanExecutor` (parallel steps, budgets, fallback backend, cross-step RRF), `Synthesizer` (single grounded generation, citation validation, confidence), `RetrievalEngine` (streams typed events, persists traces). |
 | `evaluation/` | Offline harness: hit@k, MRR, context recall, answer substring recall, citation rate, optional LLM-judged faithfulness/relevancy, latency percentiles. |
 | `api/v1/` | Routes (also mounted under `/v1`): health, auth, chat (SSE + JSON, sessions, history, feedback), documents, knowledge backends + raw `retrieve`, traces, evaluations. The legacy multi-agent routes (`/api/agents`) remain for experimentation. |
@@ -70,9 +72,18 @@ class KnowledgeAdapter(ABC):
 
 * **local** – `HybridRetriever` over Qdrant; honours `document_ids`, `tenant_id`, `user_id`, `content_types`, `page` and arbitrary payload filters.
 * **foundry_iq** – `POST /knowledgebases('{kb}')/retrieve` with `outputMode=extractiveData`, reasoning effort from the request, OData `filterAddOn` for scope, `x-ms-query-source-authorization` for per-user ACL trimming, `references[]`/`activity[]` mapped to chunks and trace. Falls back across the three path styles Azure has shipped (`knowledgebases('x')`, `knowledgebases/x`, `agents/x`).
+* **mcp** – generic MCP client: connects to `MCP_SERVER_URL`, calls `MCP_TOOL_NAME` (`knowledge_retrieve` for another Bodham, `knowledge_base_retrieve` for Foundry IQ), parses structured content, JSON text or plain text into chunks. Also accepts an in-process `MCPServer` for tests.
 * **mock** – keyword overlap over in-memory documents; used by tests and offline demos.
 
-Adding a backend = one class + one registry entry. `POST /knowledge/retrieve` exposes the same contract over HTTP (the future MCP tool).
+Adding a backend = one class + one registry entry. `POST /knowledge/retrieve` and the MCP tool `knowledge_retrieve` expose the same contract.
+
+## 4a. Permission model
+
+* **Principals on chunks.** Ingestion writes an `acl` list on every Qdrant payload, computed from the document's owner, tenant, visibility (`private` → owner only, `tenant` → everyone in the tenant, `public` → anyone) and shared groups. `PUT /documents/{id}/sharing` changes it and re-indexes.
+* **Filters from identity, never from the client.** `access_filters_for(token)` turns the verified JWT/Entra claims into `RetrievalFilters.principals` (`public`, `user:<id>`, `tenant:<id>`, `group:<g>`...). The Qdrant store adds a mandatory `acl` match-any condition; the mock adapter applies the same rule; Foundry IQ receives the caller's token in `x-ms-query-source-authorization`. Anonymous callers get `public` only. Admins and the MCP service token are tenant-scoped instead.
+* **Same rule for metadata.** Document list/get/delete use `document_visibility_clause` (owner, public, tenant, or a shared group); only the owner or an admin can delete, reprocess or re-share.
+* **Identity sources.** `AUTH_MODE=local` issues HS256 JWTs carrying `tenant_id`, `role`, `groups` (admins manage them via `PUT /auth/users/{username}`); `AUTH_MODE=entra` validates RS256 Entra ID tokens against the tenant JWKS and maps `oid`/`tid`/`groups`/`roles` (members of `ENTRA_ADMIN_GROUP` become admins); `both` accepts either.
+* **Kill switch.** `ACL_ENFORCEMENT=false` disables filtering for single-user deployments.
 
 ## 5. Running modes
 
@@ -85,11 +96,11 @@ Adding a backend = one class + one registry entry. `POST /knowledge/retrieve` ex
 
 ## 6. Roadmap
 
-**v1 (this branch):** everything above, 204 tests, eval harness, sample dataset.
+**v1:** retrieval engine, adapters, API, UI, eval harness.
 
-**v2 (next):**
-1. MCP server (`mcp` SDK ≥ 2.3) exposing `knowledge_retrieve`, so Foundry Agent Service / Claude / any MCP client can use Dexter as a knowledge source; generic `McpRetriever` adapter for third-party servers.
-2. Permission model: ACL principals stored on chunks at ingestion, mandatory filter injected from the verified JWT (never client-supplied), fail closed; Entra ID login.
+**v2 (this branch):** MCP server + generic MCP adapter, permission model (ACL principals, mandatory filters, sharing, admin user management), Entra ID token validation, product renamed to Bodham. 217 tests.
+
+**v3 (next):**
 3. Connectors: SharePoint/OneDrive, Google Drive, Confluence, S3/Blob, web crawl (Onyx-style connector ABC + scheduler).
 4. Structured data tool (`data.query`): semantic model, NL→SQL, `sqlglot` AST policy (read-only, allowlists, limits), evidence type `sql` — the Bodham blueprint.
 5. Retrieval tiers behind the router: CRAG-style relevance gating + iterative retrieval, RAPTOR-lite summaries for "summarise the whole document", LightRAG/HippoRAG graph tier for multi-hop, ColPali page retrieval for visual PDFs.

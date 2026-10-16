@@ -75,6 +75,7 @@ async def init_db(seed_admin: bool = True) -> None:
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensure_columns)
     logger.info("Database tables ready")
 
     if seed_admin:
@@ -87,8 +88,32 @@ async def init_db(seed_admin: bool = True) -> None:
                     email=f"{settings.default_admin_username}@example.com",
                     password_hash=hash_password(settings.default_admin_password),
                     role="admin",
+                    tenant_id=settings.default_tenant_id,
+                    groups="",
                 ))
                 logger.info("Seeded default admin user", username=settings.default_admin_username)
+
+
+def _ensure_columns(conn) -> None:
+    """Lightweight forward migration: add columns introduced after a table was first created."""
+    from sqlalchemy import inspect, text
+    from .models import Base
+
+    inspector = inspect(conn)
+    for table in Base.metadata.sorted_tables:
+        if table.name not in inspector.get_table_names():
+            continue
+        existing = {c["name"] for c in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in existing:
+                continue
+            ddl_type = column.type.compile(dialect=conn.dialect)
+            default = ""
+            if column.default is not None and getattr(column.default, "arg", None) is not None and not callable(column.default.arg):
+                arg = column.default.arg
+                default = f" DEFAULT {repr(arg) if isinstance(arg, str) else arg}"
+            conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {column.name} {ddl_type}{default}'))
+            logger.info("Added missing column", table=table.name, column=column.name)
 
 
 async def close_db() -> None:

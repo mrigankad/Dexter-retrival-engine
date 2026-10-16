@@ -1,5 +1,5 @@
 """
-Dexter Retrieval Engine - FastAPI application.
+Bodham Retrieval Engine - FastAPI application.
 
 Routes are mounted twice: at their legacy paths (used by the bundled React UI)
 and under ``/v1`` (the versioned contract).
@@ -51,7 +51,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             setup_telemetry(app)
         except Exception as exc:
             logger.warning("Telemetry setup failed", error=str(exc))
-    yield
+    if settings.mcp_server_enabled:
+        from src.mcp_server import mcp_lifespan
+        async with mcp_lifespan():
+            logger.info("MCP server mounted", path="/mcp", auth_required=settings.mcp_require_auth)
+            yield
+    else:
+        yield
     logger.info("Shutting down application")
     from src.ingestion.worker import wait_for_inline_jobs
     await wait_for_inline_jobs()
@@ -63,7 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="Dexter Retrieval Engine",
+    title="Bodham Retrieval Engine",
     description="Pluggable enterprise retrieval engine: hybrid search, reranking, planned multi-hop retrieval, "
                 "cited synthesis, and swappable knowledge backends (local Qdrant, Microsoft Foundry IQ).",
     version=APP_VERSION,
@@ -125,6 +131,10 @@ for prefix in ("", "/v1"):
     app.include_router(trace_router, prefix=f"{prefix}/traces", tags=["Traces" + tag_suffix], include_in_schema=not prefix)
     app.include_router(evaluation_router, prefix=f"{prefix}/evaluations", tags=["Evaluation" + tag_suffix], include_in_schema=not prefix)
 app.include_router(agents_router, tags=["Multi-Agent (experimental)"])
+
+if settings.mcp_server_enabled:
+    from src.mcp_server import mcp_asgi_app
+    app.mount("/mcp", mcp_asgi_app(), name="mcp")
 
 
 @app.get("/", include_in_schema=False)

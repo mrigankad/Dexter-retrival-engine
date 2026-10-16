@@ -10,6 +10,7 @@ from src.core.logger import get_logger
 from .base import KnowledgeAdapter
 from .foundry_iq_adapter import FoundryIQAdapter
 from .local_adapter import LocalKnowledgeAdapter
+from .mcp_adapter import McpKnowledgeAdapter
 from .mock_adapter import MockKnowledgeAdapter
 
 logger = get_logger(__name__)
@@ -17,6 +18,7 @@ logger = get_logger(__name__)
 _factories: Dict[str, Callable[[], KnowledgeAdapter]] = {
     "local": LocalKnowledgeAdapter,
     "foundry_iq": FoundryIQAdapter,
+    "mcp": McpKnowledgeAdapter,
     "mock": MockKnowledgeAdapter,
 }
 _instances: Dict[str, KnowledgeAdapter] = {}

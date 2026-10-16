@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # ==========================================
     # Application
     # ==========================================
-    app_name: str = Field(default="dexter-retrieval-engine")
+    app_name: str = Field(default="bodham-retrieval-engine")
     app_env: str = Field(default="development", description="development | staging | production | test")
     debug: bool = Field(default=True)
     log_level: str = Field(default="INFO")
@@ -37,11 +37,11 @@ class Settings(BaseSettings):
     # ==========================================
     # Knowledge backend selection
     # ==========================================
-    knowledge_backend: Literal["local", "foundry_iq", "mock"] = Field(
+    knowledge_backend: Literal["local", "foundry_iq", "mcp", "mock"] = Field(
         default="local",
         description="Which KnowledgeAdapter answers knowledge.retrieve: local (Qdrant hybrid), foundry_iq (Azure AI Search agentic retrieval), mock",
     )
-    knowledge_fallback_backend: Optional[Literal["local", "foundry_iq", "mock"]] = Field(
+    knowledge_fallback_backend: Optional[Literal["local", "foundry_iq", "mcp", "mock"]] = Field(
         default=None, description="Optional backend used when the primary one fails or returns nothing",
     )
 
@@ -95,7 +95,7 @@ class Settings(BaseSettings):
         description="Full async SQLAlchemy URL. If unset, built from POSTGRES_* or SQLite when USE_SQLITE=true",
     )
     use_sqlite: bool = Field(default=False, description="Use a local SQLite file instead of PostgreSQL")
-    sqlite_path: str = Field(default="./data/dexter.db")
+    sqlite_path: str = Field(default="./data/bodham.db")
     postgres_host: str = Field(default="postgres")
     postgres_port: int = Field(default=5432)
     postgres_db: str = Field(default="ragdb")
@@ -169,6 +169,38 @@ class Settings(BaseSettings):
     allow_anonymous_chat: bool = Field(default=True, description="Allow /chat without a JWT (dev only)")
     default_admin_username: str = Field(default="admin")
     default_admin_password: str = Field(default="admin123")
+
+    # ==========================================
+    # Access control
+    # ==========================================
+    acl_enforcement: bool = Field(default=True, description="Derive mandatory retrieval/document filters from the verified identity")
+    acl_tenant_scoping: bool = Field(default=True, description="Admins and service callers are still limited to their tenant")
+    default_document_visibility: Literal["private", "tenant", "public"] = Field(default="tenant")
+    default_tenant_id: str = Field(default="default")
+
+    # ==========================================
+    # Authentication mode
+    # ==========================================
+    auth_mode: Literal["local", "entra", "both"] = Field(
+        default="local", description="local = Bodham-issued JWTs; entra = Microsoft Entra ID bearer tokens; both = accept either"
+    )
+    entra_tenant_id: str = Field(default="", description="Entra directory (tenant) id, or 'common'")
+    entra_client_id: str = Field(default="", description="Expected audience (application id URI or client id)")
+    entra_jwks_url: str = Field(default="", description="Override JWKS URL (default: login.microsoftonline.com/<tenant>/discovery/v2.0/keys)")
+    entra_issuer: str = Field(default="", description="Override expected issuer (default: https://login.microsoftonline.com/<tenant>/v2.0)")
+    entra_admin_group: str = Field(default="", description="Entra group id/name whose members get the admin role")
+
+    # ==========================================
+    # MCP (server + client adapter)
+    # ==========================================
+    mcp_server_enabled: bool = Field(default=True, description="Mount the MCP knowledge server at /mcp")
+    mcp_require_auth: bool = Field(default=True, description="Require a bearer token on MCP tool calls")
+    mcp_api_token: str = Field(default="", description="Static service token accepted by the MCP server (tenant-wide access)")
+    mcp_server_url: str = Field(default="", description="Remote MCP server URL for KNOWLEDGE_BACKEND=mcp (e.g. a Foundry IQ /mcp endpoint)")
+    mcp_tool_name: str = Field(default="knowledge_retrieve", description="Remote tool to call (Foundry IQ: knowledge_base_retrieve)")
+    mcp_query_arg: str = Field(default="query", description="Argument name carrying the question")
+    mcp_auth_token: str = Field(default="", description="Bearer token sent to the remote MCP server")
+    mcp_timeout: int = Field(default=60)
 
     # ==========================================
     # Retrieval
