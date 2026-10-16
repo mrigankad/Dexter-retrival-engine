@@ -31,7 +31,7 @@ export function StreamingCursor({ isVisible }: StreamingCursorProps) {
  * 
  * Animated dots with a shimmer effect.
  */
-export function ThinkingIndicator() {
+export function ThinkingIndicator({ label }: { label?: string }) {
     return (
         <div className="flex items-center gap-3 py-3">
             <div className="flex items-center gap-1.5">
@@ -39,7 +39,7 @@ export function ThinkingIndicator() {
                 <span className="w-2 h-2 rounded-full bg-nvidia thinking-dot" />
                 <span className="w-2 h-2 rounded-full bg-nvidia thinking-dot" />
             </div>
-            <span className="text-sm text-dark-400 animate-pulse">Reasoning...</span>
+            <span className="text-sm text-dark-400 animate-pulse">{label || 'Reasoning...'}</span>
         </div>
     );
 }

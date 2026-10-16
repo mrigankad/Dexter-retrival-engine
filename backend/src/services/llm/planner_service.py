@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from src.core.config import settings
 from src.core.logger import get_logger, log_timing
-from src.services.nvidia_llm_service import NvidiaLLMService
+from src.services.llm.nvidia_llm_service import NvidiaLLMService
 
 logger = get_logger(__name__)
 

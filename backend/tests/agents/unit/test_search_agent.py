@@ -64,7 +64,7 @@ async def test_execute_retrieves_documents(initialized_search_agent):
         {"id": "2", "content": "Another AI doc", "score": 0.87},
     ]
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(return_value={
             "documents": mock_docs,
@@ -98,7 +98,7 @@ async def test_execute_respects_top_k(initialized_search_agent):
 
     mock_docs = [{"id": str(i), "content": f"Doc {i}", "score": 0.9} for i in range(5)]
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(return_value={
             "documents": mock_docs,
@@ -121,7 +121,7 @@ async def test_execute_respects_top_k(initialized_search_agent):
 async def test_execute_uses_default_top_k(initialized_search_agent):
     """Test default top_k value."""
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(return_value={
             "documents": [],
@@ -177,7 +177,7 @@ async def test_execute_raises_on_no_query(initialized_search_agent):
 async def test_execute_propagates_retrieval_errors(initialized_search_agent):
     """Test that errors from retrieval service are propagated."""
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(
             side_effect=RuntimeError("Connection failed")
@@ -197,7 +197,7 @@ async def test_execute_propagates_retrieval_errors(initialized_search_agent):
 async def test_execute_updates_performance_on_success(initialized_search_agent):
     """Test that successful execution updates metrics."""
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(return_value={
             "documents": [{"id": "1"}],
@@ -221,7 +221,7 @@ async def test_execute_updates_performance_on_success(initialized_search_agent):
 async def test_execute_updates_performance_on_failure(initialized_search_agent):
     """Test that failed execution updates metrics."""
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(side_effect=RuntimeError("Error"))
         MockRetrievalService.return_value = mock_instance
@@ -243,7 +243,7 @@ async def test_execute_updates_performance_on_failure(initialized_search_agent):
 async def test_execute_stores_in_memory(initialized_search_agent):
     """Test that successful searches are stored in memory."""
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(return_value={
             "documents": [{"id": "1"}],
@@ -269,7 +269,7 @@ async def test_execute_stores_in_memory(initialized_search_agent):
 async def test_execute_records_in_history(initialized_search_agent):
     """Test that execution is recorded in history."""
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(return_value={
             "documents": [],
@@ -320,7 +320,7 @@ def test_get_search_stats(search_agent):
 async def test_multiple_sequential_searches(initialized_search_agent):
     """Test that agent can handle multiple searches sequentially."""
 
-    with patch("services.retrieval_service.RetrievalService") as MockRetrievalService:
+    with patch("src.services.retrieval_service.RetrievalService") as MockRetrievalService:
         mock_instance = AsyncMock()
         mock_instance.retrieve = AsyncMock(return_value={
             "documents": [{"id": "1"}],

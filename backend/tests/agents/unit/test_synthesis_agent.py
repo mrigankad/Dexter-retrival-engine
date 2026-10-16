@@ -80,7 +80,7 @@ async def test_execute_synthesizes_response(initialized_synthesis_agent):
         "summary": "Summary of the response"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -178,7 +178,7 @@ async def test_execute_requires_search_results(initialized_synthesis_agent):
 async def test_execute_propagates_llm_errors(initialized_synthesis_agent):
     """Test that errors from LLM service are propagated."""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(
             side_effect=RuntimeError("Synthesis failed")
@@ -209,7 +209,7 @@ async def test_execute_updates_performance_on_success(initialized_synthesis_agen
         "summary": "Summary"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -234,7 +234,7 @@ async def test_execute_updates_performance_on_success(initialized_synthesis_agen
 async def test_execute_updates_performance_on_failure(initialized_synthesis_agent):
     """Test that failed execution updates metrics."""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(side_effect=RuntimeError("Error"))
         MockLLMService.return_value = mock_instance
@@ -266,7 +266,7 @@ async def test_execute_stores_in_memory(initialized_synthesis_agent):
         "summary": "Summary"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -296,7 +296,7 @@ async def test_execute_records_in_history(initialized_synthesis_agent):
         "summary": "Summary"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -491,7 +491,7 @@ async def test_multiple_sequential_syntheses(initialized_synthesis_agent):
         "summary": "Summary"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance

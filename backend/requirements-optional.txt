@@ -1,0 +1,35 @@
+# ============================================
+# Optional integrations (install what you enable)
+# ============================================
+
+# Better PDF parsing: layout-aware Docling (PARSER_BACKEND=docling|auto) and PyMuPDF (tables, fast text)
+docling>=2.0.0
+pymupdf>=1.24.0
+
+# Local cross-encoder reranker (RERANKER_BACKEND=local) - large download
+sentence-transformers>=3.0.0
+
+# Object storage archive of originals (ENABLE_OBJECT_STORAGE=true)
+minio>=7.2.0
+
+# Knowledge graph extraction (ENABLE_KNOWLEDGE_GRAPH=true)
+neo4j>=5.14.0
+langchain-neo4j>=0.0.1
+
+# RAGAS-based evaluation (RAGAS_EVALUATION_ENABLED=true)
+ragas>=0.2.0
+datasets>=2.19.0
+
+# Observability
+opentelemetry-api>=1.25.0
+opentelemetry-sdk>=1.25.0
+opentelemetry-exporter-otlp>=1.25.0
+opentelemetry-instrumentation-fastapi>=0.46b0
+opentelemetry-instrumentation-httpx>=0.46b0
+prometheus-client>=0.20.0
+
+# Legacy report generation (backend/reports)
+matplotlib>=3.8.0
+openpyxl>=3.1.0
+reportlab>=4.1.0
+pandas>=2.1.0

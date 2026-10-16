@@ -1,120 +1,104 @@
-"""
-Pytest configuration and fixtures.
-"""
-
 import asyncio
-from typing import AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock
+import os
+import shutil
+import uuid
+from pathlib import Path
 
 import pytest
-from httpx import AsyncClient
+import pytest_asyncio
+
+from fakes import FakeEmbeddingService, FakeLLM, FakeReranker
+
+SAMPLES = Path(__file__).parent / "samples"
+DATA_DIR = Path(__file__).parent.parent / ".pytest_data"
 
 
-@pytest.fixture(scope="session")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Create event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture
-def mock_nvidia_response() -> dict:
-    """Mock NVIDIA API response."""
-    return {
-        "choices": [
-            {
-                "message": {
-                    "content": "This is a mock response from NVIDIA NIM."
-                },
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 20,
-            "total_tokens": 30,
-        },
-    }
+@pytest.fixture(scope="session", autouse=True)
+def _clean_data_dir():
+    shutil.rmtree(DATA_DIR, ignore_errors=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    (DATA_DIR / "uploads").mkdir(exist_ok=True)
+    yield
+    shutil.rmtree(DATA_DIR, ignore_errors=True)
 
 
 @pytest.fixture
-def mock_embedding_response() -> dict:
-    """Mock NVIDIA embedding response."""
-    return {
-        "data": [
-            {"embedding": [0.1] * 1024, "index": 0}
-        ],
-        "usage": {"total_tokens": 10},
-    }
+def fake_llm():
+    return FakeLLM(responses={
+        "Evidence:": "Hotel stays in Tier 1 cities are capped at **220 USD** per night [1]. Meals are limited to 75 USD per day [2]. Unsupported claim [9].",
+        "chatting with you": "Hi! I answer questions about your documents.",
+        "decompose questions": '{"sub_questions": ["What is the hotel limit in Tier 1 cities?", "What is the hotel limit elsewhere?"], "alternate_phrasings": ["hotel nightly cap by city tier"], "synthesis_strategy": "comparison_table", "needs_clarification": false, "reasoning": "two sides"}',
+        "Classify the user's message": '{"intent": "KNOWLEDGE", "confidence": 0.9, "reason": "test"}',
+    })
 
 
-@pytest.fixture
-def mock_rerank_response() -> dict:
-    """Mock NVIDIA reranker response."""
-    return {
-        "rankings": [
-            {"index": 0, "logit": 0.95},
-            {"index": 2, "logit": 0.85},
-            {"index": 1, "logit": 0.75},
-        ]
-    }
+@pytest_asyncio.fixture
+async def services(fake_llm):
+    """Install fakes + reset all singletons; yields (llm, embedder, reranker)."""
+    from src.services.llm.embedding_service import set_embedding_service
+    from src.services.llm.nvidia_llm_service import set_llm_service
+    from src.services.llm.reranker_service import set_reranker_service
+    from src.infrastructure.vector_store.qdrant_store import reset_qdrant_for_tests
+    from src.retrieval.hybrid_retriever import reset_hybrid_retriever
+    from src.ingestion.pipeline import reset_ingestion_pipeline
+    from src.knowledge import reset_registry
+    from src.orchestrator.engine import set_engine
+    from src.api.v1.chat_routes import reset_engine_cache
+    from src.infrastructure.database import init_db, close_db
+    from src.infrastructure.database.session_manager import reset_db_for_tests
+
+    emb, rr = FakeEmbeddingService(), FakeReranker()
+    set_embedding_service(emb)
+    set_reranker_service(rr)
+    set_llm_service(fake_llm)
+    await reset_qdrant_for_tests()
+    reset_hybrid_retriever()
+    reset_ingestion_pipeline()
+    reset_registry()
+    set_engine(None)
+    reset_engine_cache()
+    await init_db()
+    await reset_db_for_tests()
+    await init_db()
+    yield fake_llm, emb, rr
+    await close_db()
+    await reset_qdrant_for_tests()
+    reset_hybrid_retriever()
+    reset_ingestion_pipeline()
+    reset_registry()
+    set_engine(None)
+    set_embedding_service(None)
+    set_reranker_service(None)
+    set_llm_service(None)
 
 
-@pytest.fixture
-def mock_httpx_client(mock_nvidia_response: dict) -> AsyncMock:
-    """Mock httpx async client."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = mock_nvidia_response
-    mock_response.raise_for_status = MagicMock()
-    
-    mock_client = AsyncMock()
-    mock_client.post.return_value = mock_response
-    mock_client.__aenter__.return_value = mock_client
-    mock_client.__aexit__.return_value = None
-    
-    return mock_client
+@pytest_asyncio.fixture
+async def indexed_policy(services):
+    """Ingest the sample policy document; returns its document_id."""
+    from src.contracts import IngestionJob
+    from src.infrastructure.database import Document, session_scope
+    from src.ingestion import get_ingestion_pipeline
+
+    did = str(uuid.uuid4())
+    async with session_scope() as s:
+        s.add(Document(id=uuid.UUID(did), filename="policy.md", file_type="md", file_size=10, status="pending"))
+    result = await get_ingestion_pipeline().process(IngestionJob(document_id=did, file_path=str(SAMPLES / "policy.md"), filename="policy.md"))
+    assert result.status == "completed", result.error
+    return did
 
 
-@pytest.fixture
-def sample_document_text() -> str:
-    """Sample document text for testing."""
-    return """
-    Introduction to Machine Learning
+@pytest_asyncio.fixture
+async def client(services):
+    import httpx
+    from main import app
 
-    Machine learning is a subset of artificial intelligence (AI) that enables 
-    systems to learn and improve from experience without being explicitly programmed.
-    
-    Types of Machine Learning
-    
-    1. Supervised Learning: The algorithm learns from labeled training data.
-    2. Unsupervised Learning: The algorithm finds patterns in unlabeled data.
-    3. Reinforcement Learning: The agent learns through trial and error.
-    
-    Applications
-    
-    Machine learning has numerous applications including:
-    - Natural Language Processing
-    - Computer Vision
-    - Recommendation Systems
-    - Fraud Detection
-    """
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+            yield c
 
 
-@pytest.fixture
-def sample_chunks() -> list:
-    """Sample document chunks for testing."""
-    return [
-        {
-            "content": "Machine learning is a subset of AI.",
-            "document_id": "doc_123",
-            "source": "test.pdf",
-            "chunk_index": 0,
-        },
-        {
-            "content": "Supervised learning uses labeled data.",
-            "document_id": "doc_123",
-            "source": "test.pdf",
-            "chunk_index": 1,
-        },
-    ]
+@pytest_asyncio.fixture
+async def auth_headers(client):
+    r = await client.post("/auth/login", json={"username": "admin", "password": "admin123"})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}

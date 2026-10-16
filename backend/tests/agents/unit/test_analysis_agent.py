@@ -69,7 +69,7 @@ async def test_execute_analyzes_documents(initialized_analysis_agent):
         "summary": "Overall summary"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -123,7 +123,7 @@ async def test_execute_raises_on_wrong_task(initialized_analysis_agent):
 async def test_execute_propagates_llm_errors(initialized_analysis_agent):
     """Test that errors from LLM service are propagated."""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(
             side_effect=RuntimeError("LLM connection failed")
@@ -147,7 +147,7 @@ async def test_execute_updates_performance_on_success(initialized_analysis_agent
 
     mock_response = '{"key_findings": [], "patterns": [], "insights": [], "summary": ""}'
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -169,7 +169,7 @@ async def test_execute_updates_performance_on_success(initialized_analysis_agent
 async def test_execute_updates_performance_on_failure(initialized_analysis_agent):
     """Test that failed execution updates metrics."""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(side_effect=RuntimeError("Error"))
         MockLLMService.return_value = mock_instance
@@ -194,7 +194,7 @@ async def test_execute_stores_in_memory(initialized_analysis_agent):
 
     mock_response = '{"key_findings": ["F1"], "patterns": [], "insights": [], "summary": ""}'
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -220,7 +220,7 @@ async def test_execute_records_in_history(initialized_analysis_agent):
 
     mock_response = '{"key_findings": [], "patterns": [], "insights": [], "summary": ""}'
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -307,7 +307,7 @@ async def test_multiple_sequential_analyses(initialized_analysis_agent):
 
     mock_response = '{"key_findings": ["F1"], "patterns": [], "insights": [], "summary": ""}'
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance

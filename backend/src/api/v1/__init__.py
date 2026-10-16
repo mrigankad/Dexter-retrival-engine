@@ -1,3 +1,3 @@
-"""API v1 endpoints"""
+"""API v1 routers."""
 
 __all__ = []

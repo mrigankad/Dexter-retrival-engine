@@ -72,7 +72,7 @@ class TestTechExpertAgent:
 
     @pytest.mark.asyncio
     async def test_tech_expert_execute_success(self, initialized_tech_expert):
-        with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+        with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
             mock_instance = AsyncMock()
             mock_instance.generate = AsyncMock(return_value='{"expertise": "test", "recommendations": [], "best_practices": [], "confidence_score": 0.85}')
             MockLLM.return_value = mock_instance
@@ -107,7 +107,7 @@ class TestBusinessExpertAgent:
 
     @pytest.mark.asyncio
     async def test_business_expert_execute_success(self, initialized_business_expert):
-        with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+        with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
             mock_instance = AsyncMock()
             mock_instance.generate = AsyncMock(return_value='{"expertise": "market analysis", "recommendations": [], "financial_metrics": {}, "confidence_score": 0.8}')
             MockLLM.return_value = mock_instance
@@ -136,7 +136,7 @@ class TestHealthcareExpertAgent:
 
     @pytest.mark.asyncio
     async def test_healthcare_expert_safety_critical(self, initialized_healthcare_expert):
-        with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+        with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
             mock_instance = AsyncMock()
             mock_instance.generate = AsyncMock(return_value='{"expertise": "clinical guidance", "recommendations": [], "compliance_notes": [], "patient_safety_considerations": [], "confidence_score": 0.85}')
             MockLLM.return_value = mock_instance
@@ -165,7 +165,7 @@ class TestLegalExpertAgent:
 
     @pytest.mark.asyncio
     async def test_legal_expert_includes_disclaimer(self, initialized_legal_expert):
-        with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+        with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
             mock_instance = AsyncMock()
             mock_instance.generate = AsyncMock(return_value='{"expertise": "compliance guidance", "recommendations": [], "legal_considerations": [], "compliance_requirements": [], "risk_factors": [], "confidence_score": 0.82}')
             MockLLM.return_value = mock_instance
@@ -214,7 +214,7 @@ class TestDomainExpertShared:
         experts = [initialized_tech_expert, initialized_business_expert, initialized_healthcare_expert, initialized_legal_expert]
 
         for expert in experts:
-            with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+            with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
                 mock_instance = AsyncMock()
                 mock_instance.generate = AsyncMock(return_value='{"expertise": "test", "recommendations": [], "confidence_score": 0.8}')
                 MockLLM.return_value = mock_instance
@@ -234,7 +234,7 @@ class TestDomainExpertShared:
         experts = [initialized_tech_expert, initialized_business_expert, initialized_healthcare_expert, initialized_legal_expert]
 
         for expert in experts:
-            with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+            with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
                 mock_instance = AsyncMock()
                 mock_instance.generate = AsyncMock(return_value='{"expertise": "test", "recommendations": [], "confidence_score": 0.8}')
                 MockLLM.return_value = mock_instance
@@ -271,7 +271,7 @@ class TestDomainSpecificBehavior:
     @pytest.mark.asyncio
     async def test_healthcare_expert_uses_lower_temperature(self, initialized_healthcare_expert):
         """Healthcare expert uses lower temperature for safety"""
-        with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+        with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
             mock_instance = AsyncMock()
             mock_instance.generate = AsyncMock(return_value='{"expertise": "test", "recommendations": [], "compliance_notes": [], "patient_safety_considerations": [], "confidence_score": 0.85}')
             MockLLM.return_value = mock_instance
@@ -289,7 +289,7 @@ class TestDomainSpecificBehavior:
     @pytest.mark.asyncio
     async def test_legal_expert_uses_lower_temperature(self, initialized_legal_expert):
         """Legal expert uses lower temperature for accuracy"""
-        with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+        with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
             mock_instance = AsyncMock()
             mock_instance.generate = AsyncMock(return_value='{"expertise": "test", "recommendations": [], "legal_considerations": [], "compliance_requirements": [], "risk_factors": [], "confidence_score": 0.82}')
             MockLLM.return_value = mock_instance
@@ -306,7 +306,7 @@ class TestDomainSpecificBehavior:
     @pytest.mark.asyncio
     async def test_tech_expert_handles_architecture_type(self, initialized_tech_expert):
         """Tech expert handles architecture expertise type"""
-        with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+        with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
             mock_instance = AsyncMock()
             mock_instance.generate = AsyncMock(return_value='{"expertise": "architecture advice", "recommendations": [], "best_practices": [], "confidence_score": 0.85}')
             MockLLM.return_value = mock_instance
@@ -323,7 +323,7 @@ class TestDomainSpecificBehavior:
     @pytest.mark.asyncio
     async def test_business_expert_includes_financial_metrics(self, initialized_business_expert):
         """Business expert includes financial metrics"""
-        with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLM:
+        with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLM:
             mock_instance = AsyncMock()
             mock_instance.generate = AsyncMock(return_value='{"expertise": "financial analysis", "recommendations": [], "financial_metrics": {"roi": 0.35, "payback_period": 18}, "confidence_score": 0.8}')
             MockLLM.return_value = mock_instance

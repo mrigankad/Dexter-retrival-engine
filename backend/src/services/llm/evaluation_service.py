@@ -20,7 +20,7 @@ from ragas.metrics import (
     context_recall,
 )
 from datasets import Dataset
-from src.services.ragas_nvidia_wrapper import NvidiaJudgeLLM
+from src.services.llm.ragas_nvidia_wrapper import NvidiaJudgeLLM
 
 from src.core.config import settings
 from src.core.logger import get_logger, log_timing

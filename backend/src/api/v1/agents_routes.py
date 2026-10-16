@@ -17,8 +17,19 @@ from src.agents.coordinator.coordinator_agent import CoordinatorAgent
 
 logger = logging.getLogger(__name__)
 
-# Initialize coordinator
-coordinator = CoordinatorAgent()
+
+class _LazyCoordinator:
+    """Instantiate the multi-agent coordinator on first use (keeps app startup cheap)."""
+
+    _instance = None
+
+    def __getattr__(self, item):
+        if _LazyCoordinator._instance is None:
+            _LazyCoordinator._instance = CoordinatorAgent()
+        return getattr(_LazyCoordinator._instance, item)
+
+
+coordinator = _LazyCoordinator()
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 

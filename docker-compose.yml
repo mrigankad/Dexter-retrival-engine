@@ -1,9 +1,81 @@
 # ============================================
-# Dexter Retrieval Agent - Docker Compose
+# Dexter Retrieval Engine - Docker Compose
+#   default profile : frontend, api, ingestion-worker, postgres, qdrant, redis
+#   --profile graph : + neo4j      (ENABLE_KNOWLEDGE_GRAPH=true)
+#   --profile storage: + minio     (ENABLE_OBJECT_STORAGE=true)
 # ============================================
 
+x-engine-env: &engine-env
+  APP_NAME: ${APP_NAME:-dexter-retrieval-engine}
+  APP_ENV: ${APP_ENV:-development}
+  DEBUG: ${DEBUG:-true}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  # Knowledge backend: local | foundry_iq | mock
+  KNOWLEDGE_BACKEND: ${KNOWLEDGE_BACKEND:-local}
+  KNOWLEDGE_FALLBACK_BACKEND: ${KNOWLEDGE_FALLBACK_BACKEND:-}
+  # NVIDIA NIM
+  NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+  NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+  NVIDIA_LLM_MODEL: ${NVIDIA_LLM_MODEL:-nvidia/nemotron-3-super-120b-a12b}
+  NVIDIA_LLM_FAST_MODEL: ${NVIDIA_LLM_FAST_MODEL:-nvidia/nemotron-3-nano-30b-a3b}
+  NVIDIA_LLM_FALLBACK_MODELS: ${NVIDIA_LLM_FALLBACK_MODELS:-nvidia/llama-3.3-nemotron-super-49b-v1.5,meta/llama-3.1-70b-instruct}
+  NVIDIA_EMBED_MODEL: ${NVIDIA_EMBED_MODEL:-nvidia/llama-nemotron-embed-1b-v2}
+  NVIDIA_RERANK_MODEL: ${NVIDIA_RERANK_MODEL:-nvidia/llama-nemotron-rerank-1b-v2}
+  NVIDIA_RERANK_URL: ${NVIDIA_RERANK_URL:-https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-nemotron-rerank-1b-v2/reranking}
+  NVIDIA_TIMEOUT: ${NVIDIA_TIMEOUT:-90}
+  # Microsoft Foundry IQ (only used when KNOWLEDGE_BACKEND=foundry_iq)
+  AZURE_SEARCH_ENDPOINT: ${AZURE_SEARCH_ENDPOINT:-}
+  AZURE_SEARCH_API_KEY: ${AZURE_SEARCH_API_KEY:-}
+  AZURE_SEARCH_API_VERSION: ${AZURE_SEARCH_API_VERSION:-2026-08-01-preview}
+  FOUNDRY_IQ_KNOWLEDGE_BASE: ${FOUNDRY_IQ_KNOWLEDGE_BASE:-}
+  FOUNDRY_IQ_KNOWLEDGE_SOURCE: ${FOUNDRY_IQ_KNOWLEDGE_SOURCE:-}
+  FOUNDRY_IQ_REASONING_EFFORT: ${FOUNDRY_IQ_REASONING_EFFORT:-low}
+  # PostgreSQL
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: ${POSTGRES_DB:-ragdb}
+  POSTGRES_USER: ${POSTGRES_USER:-raguser}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ragpass123}
+  # Qdrant
+  QDRANT_MODE: server
+  QDRANT_HOST: qdrant
+  QDRANT_PORT: 6333
+  QDRANT_COLLECTION: ${QDRANT_COLLECTION:-documents}
+  QDRANT_VECTOR_SIZE: ${QDRANT_VECTOR_SIZE:-2048}
+  QDRANT_SPARSE_ENABLED: ${QDRANT_SPARSE_ENABLED:-true}
+  # Redis
+  REDIS_ENABLED: "true"
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  INGESTION_MODE: ${INGESTION_MODE:-queue}
+  # Security
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+  ALLOW_ANONYMOUS_CHAT: ${ALLOW_ANONYMOUS_CHAT:-true}
+  DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-admin123}
+  # Retrieval
+  CHUNK_SIZE: ${CHUNK_SIZE:-512}
+  CHUNK_OVERLAP: ${CHUNK_OVERLAP:-64}
+  TOP_K_RETRIEVAL: ${TOP_K_RETRIEVAL:-24}
+  RERANK_TOP_K: ${RERANK_TOP_K:-8}
+  MAX_CONTEXT_TOKENS: ${MAX_CONTEXT_TOKENS:-6144}
+  HYBRID_SEARCH_ENABLED: ${HYBRID_SEARCH_ENABLED:-true}
+  ENABLE_RERANKING: ${ENABLE_RERANKING:-true}
+  RERANKER_BACKEND: ${RERANKER_BACKEND:-nvidia}
+  MULTI_QUERY_ENABLED: ${MULTI_QUERY_ENABLED:-true}
+  PARSER_BACKEND: ${PARSER_BACKEND:-auto}
+  # Optional integrations
+  ENABLE_KNOWLEDGE_GRAPH: ${ENABLE_KNOWLEDGE_GRAPH:-false}
+  ENABLE_OBJECT_STORAGE: ${ENABLE_OBJECT_STORAGE:-false}
+  NEO4J_URI: bolt://neo4j:7687
+  NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password123}
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-ragadmin}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-ragpass123}
+  GUARDRAILS_ENABLED: ${GUARDRAILS_ENABLED:-true}
+  UPLOAD_DIR: /app/uploads
+
 services:
-  # Frontend Service
   frontend:
     build:
       context: ./frontend
@@ -13,203 +85,83 @@ services:
       - "3000:80"
     depends_on:
       - api
-    networks:
-      - dexter-network
+    networks: [dexter-network]
     restart: unless-stopped
-  # ==========================================
-  # FastAPI Backend API
-  # ==========================================
+
   api:
     build:
       context: .
       dockerfile: docker/api/Dockerfile
+      args:
+        INSTALL_OPTIONAL: ${INSTALL_OPTIONAL:-false}
     container_name: dexter-api
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
-      - APP_NAME=${APP_NAME:-dexter-backend}
-      - APP_ENV=${APP_ENV:-development}
-      - DEBUG=${DEBUG:-true}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - API_HOST=0.0.0.0
-      - API_PORT=8000
-      - API_WORKERS=${API_WORKERS:-4}
-      # NVIDIA Configuration
-      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
-      - NVIDIA_BASE_URL=${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NVIDIA_LLM_MODEL=${NVIDIA_LLM_MODEL:-mistralai/devstral-2-123b-instruct-2512}
-      - NVIDIA_EMBED_MODEL=${NVIDIA_EMBED_MODEL:-nvidia/llama-nemotron-embed-vl-1b-v2}
-      - NVIDIA_RERANK_MODEL=${NVIDIA_RERANK_MODEL:-nvidia/llama-3.2-nv-rerankqa-1b-v2}
-      - NVIDIA_TIMEOUT=${NVIDIA_TIMEOUT:-90}
-      - NVIDIA_MAX_RETRIES=${NVIDIA_MAX_RETRIES:-3}
-      # Database
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-ragdb}
-      - POSTGRES_USER=${POSTGRES_USER:-raguser}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ragpass123}
-      # Qdrant
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-documents}
-      - QDRANT_VECTOR_SIZE=${QDRANT_VECTOR_SIZE:-1024}
-      # Redis
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=${REDIS_DB:-0}
-      # Security
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
-      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
-      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
-      # RAG Configuration
-      - CHUNK_SIZE=${CHUNK_SIZE:-512}
-      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-50}
-      - TOP_K_RETRIEVAL=${TOP_K_RETRIEVAL:-5}
-      - RERANK_TOP_K=${RERANK_TOP_K:-3}
-      - MAX_CONTEXT_TOKENS=${MAX_CONTEXT_TOKENS:-4096}
-      - HYBRID_SEARCH_ENABLED=${HYBRID_SEARCH_ENABLED:-true}
-      - ENABLE_RERANKING=${ENABLE_RERANKING:-true}
-      # Neo4j Graph Database
-      - NEO4J_URI=bolt://neo4j:7687
-      - NEO4J_USERNAME=${NEO4J_USERNAME:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password123}
-      # MinIO Object Storage
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-ragadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-ragpass123}
-      - MINIO_SECURE=false
-      - MINIO_BUCKET_DOCUMENTS=${MINIO_BUCKET_DOCUMENTS:-documents}
-      - MINIO_BUCKET_ASSETS=${MINIO_BUCKET_ASSETS:-parsed-assets}
-      # Guardrails
-      - GUARDRAILS_ENABLED=${GUARDRAILS_ENABLED:-false}
-      # Observability
-      - RAGAS_EVALUATION_ENABLED=${RAGAS_EVALUATION_ENABLED:-false}
+      <<: *engine-env
     volumes:
       - upload_data:/app/uploads
     depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - dexter-network
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [dexter-network]
     restart: unless-stopped
 
-  # ==========================================
-  # Ingestion Worker
-  # ==========================================
   ingestion-worker:
     build:
       context: .
       dockerfile: docker/ingestion/Dockerfile
+      args:
+        INSTALL_OPTIONAL: ${INSTALL_OPTIONAL:-false}
     container_name: dexter-ingestion-worker
     environment:
-      - APP_NAME=${APP_NAME:-dexter-backend}
-      - APP_ENV=${APP_ENV:-development}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      # NVIDIA Configuration (MUST match API service models)
-      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
-      - NVIDIA_BASE_URL=${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      - NVIDIA_LLM_MODEL=${NVIDIA_LLM_MODEL:-mistralai/devstral-2-123b-instruct-2512}
-      - NVIDIA_EMBED_MODEL=${NVIDIA_EMBED_MODEL:-nvidia/llama-nemotron-embed-vl-1b-v2}
-      - NVIDIA_RERANK_MODEL=${NVIDIA_RERANK_MODEL:-nvidia/llama-3.2-nv-rerankqa-1b-v2}
-      - NVIDIA_TIMEOUT=${NVIDIA_TIMEOUT:-90}
-      - NVIDIA_MAX_RETRIES=${NVIDIA_MAX_RETRIES:-3}
-      # Database
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-ragdb}
-      - POSTGRES_USER=${POSTGRES_USER:-raguser}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ragpass123}
-      # Qdrant
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-documents}
-      - QDRANT_VECTOR_SIZE=${QDRANT_VECTOR_SIZE:-1024}
-      # Redis
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=${REDIS_DB:-0}
-      # Neo4j Graph Database
-      - NEO4J_URI=bolt://neo4j:7687
-      - NEO4J_USERNAME=${NEO4J_USERNAME:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password123}
-      # MinIO Object Storage
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-ragadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-ragpass123}
-      - MINIO_SECURE=false
-      # Ingestion Settings
-      - CHUNK_SIZE=${CHUNK_SIZE:-512}
-      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-50}
-      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-50}
-      - INGESTION_BATCH_SIZE=${INGESTION_BATCH_SIZE:-10}
+      <<: *engine-env
     volumes:
       - upload_data:/app/uploads
     depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - dexter-network
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [dexter-network]
     restart: unless-stopped
 
-  # ==========================================
-  # PostgreSQL Database
-  # ==========================================
   postgres:
     image: postgres:16-alpine
     container_name: dexter-postgres
     environment:
-      - POSTGRES_DB=${POSTGRES_DB:-ragdb}
-      - POSTGRES_USER=${POSTGRES_USER:-raguser}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ragpass123}
+      POSTGRES_DB: ${POSTGRES_DB:-ragdb}
+      POSTGRES_USER: ${POSTGRES_USER:-raguser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ragpass123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
-    networks:
-      - dexter-network
+    networks: [dexter-network]
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}" ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
 
-  # ==========================================
-  # Qdrant Vector Database
-  # ==========================================
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.19.2
     container_name: dexter-qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
-    environment:
-      - QDRANT__LOG_LEVEL=INFO
-    networks:
-      - dexter-network
+    networks: [dexter-network]
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/6333' || exit 1" ]
+      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/6333' || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 5
       start_period: 15s
 
-  # ==========================================
-  # Redis Cache
-  # ==========================================
   redis:
     image: redis:7-alpine
     container_name: dexter-redis
@@ -218,92 +170,53 @@ services:
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
-    networks:
-      - dexter-network
+    networks: [dexter-network]
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 5s
 
-  # ==========================================
-  # Neo4j Graph Database
-  # ==========================================
   neo4j:
-    image: neo4j:latest
+    image: neo4j:5
     container_name: dexter-neo4j
+    profiles: [graph]
     ports:
-      - "7474:7474" # HTTP
-      - "7687:7687" # Bolt
+      - "7474:7474"
+      - "7687:7687"
     environment:
-      - NEO4J_AUTH=${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-password123}
-      - NEO4J_apoc_export_file_enabled=true
-      - NEO4J_apoc_import_file_enabled=true
-      - NEO4J_apoc_import_url_enabled=true
-      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-password123}
     volumes:
       - neo4j_data:/data
-      - neo4j_logs:/logs
-    networks:
-      - dexter-network
+    networks: [dexter-network]
     restart: unless-stopped
-    healthcheck:
-      test: [ "CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/7687' || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
-  # ==========================================
-  # MinIO Object Storage
-  # ==========================================
   minio:
     image: minio/minio:latest
     container_name: dexter-minio
+    profiles: [storage]
     ports:
       - "9000:9000"
       - "9001:9001"
     environment:
-      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-ragadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-ragpass123}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-ragadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-ragpass123}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
-    networks:
-      - dexter-network
+    networks: [dexter-network]
     restart: unless-stopped
-    healthcheck:
-      test: [ "CMD", "mc", "ready", "local" ]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-      start_period: 30s
 
-# ==========================================
-# Networks
-# ==========================================
 networks:
   dexter-network:
     driver: bridge
     name: dexter-network
 
-# ==========================================
-# Volumes
-# ==========================================
 volumes:
-  postgres_data:
-    name: dexter-postgres-data
-  qdrant_data:
-    name: dexter-qdrant-data
-  redis_data:
-    name: dexter-redis-data
-  upload_data:
-    name: dexter-upload-data
-  neo4j_data:
-    name: dexter-neo4j-data
-  neo4j_logs:
-    name: dexter-neo4j-logs
-  minio_data:
-    name: dexter-minio-data
+  postgres_data: { name: dexter-postgres-data }
+  qdrant_data: { name: dexter-qdrant-data }
+  redis_data: { name: dexter-redis-data }
+  upload_data: { name: dexter-upload-data }
+  neo4j_data: { name: dexter-neo4j-data }
+  minio_data: { name: dexter-minio-data }

@@ -1,3 +1,5 @@
+> **October 2026 update:** start with [`ARCHITECTURE_V3.md`](ARCHITECTURE_V3.md) (current design), [`MARKET_RESEARCH.md`](MARKET_RESEARCH.md) (platform landscape incl. Foundry IQ) and [`../BUILD_STATUS.md`](../BUILD_STATUS.md) (what is built, commands, next steps). The documents below predate the v3 rebuild and describe earlier plans.
+
 # 📚 Complete Documentation Index
 
 **Generated:** February 27, 2026

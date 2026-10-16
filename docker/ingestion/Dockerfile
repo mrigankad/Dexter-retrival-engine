@@ -1,49 +1,21 @@
 # ============================================
-# NVIDIA NIM RAG Backend - Ingestion Worker Dockerfile
-# Multi-stage build for optimized production image
+# Dexter Retrieval Engine - ingestion worker image
 # ============================================
-
-# Stage 1: Builder
-FROM python:3.11-slim as builder
-
+FROM python:3.12-slim AS builder
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential curl && rm -rf /var/lib/apt/lists/*
+COPY backend/requirements.txt backend/requirements-optional.txt ./
+ARG INSTALL_OPTIONAL=false
+RUN pip install --no-cache-dir -r requirements.txt \
+ && if [ "$INSTALL_OPTIONAL" = "true" ]; then pip install --no-cache-dir -r requirements-optional.txt; fi
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install dependencies
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Stage 2: Production
-FROM python:3.11-slim as production
-
+FROM python:3.12-slim AS production
 WORKDIR /app
-
-# Create non-root user for security
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-
-# Install runtime dependencies (including poppler for PDF processing)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser \
+ && apt-get update && apt-get install -y --no-install-recommends curl poppler-utils && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Copy application code
 COPY backend/ .
-
-# Create uploads directory
-RUN mkdir -p /app/uploads && chown -R appuser:appgroup /app
-
-# Switch to non-root user
+RUN mkdir -p /app/uploads /app/data && chown -R appuser:appgroup /app
 USER appuser
-
-# Run the ingestion worker
-CMD ["python", "-m", "ingestion.ingest_worker"]
+CMD ["python", "-m", "src.ingestion.worker"]

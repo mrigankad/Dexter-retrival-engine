@@ -1,3 +1,1 @@
-"""Knowledge management services"""
-
-__all__ = []
+"""Knowledge-graph services (optional Neo4j integration)."""

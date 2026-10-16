@@ -64,7 +64,7 @@ async def test_execute_verifies_findings(initialized_verification_agent):
         "summary": "All findings verified"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -136,7 +136,7 @@ async def test_execute_requires_documents(initialized_verification_agent):
 async def test_execute_propagates_llm_errors(initialized_verification_agent):
     """Test that errors from LLM service are propagated."""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(
             side_effect=RuntimeError("Verification failed")
@@ -167,7 +167,7 @@ async def test_execute_updates_performance_on_success(initialized_verification_a
         "summary": "Good"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -200,7 +200,7 @@ async def test_execute_stores_in_memory(initialized_verification_agent):
         "summary": "Test"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance
@@ -278,7 +278,7 @@ async def test_multiple_sequential_verifications(initialized_verification_agent)
         "summary": "OK"
     }"""
 
-    with patch("services.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
+    with patch("src.services.llm.nvidia_llm_service.NvidiaLLMService") as MockLLMService:
         mock_instance = AsyncMock()
         mock_instance.generate = AsyncMock(return_value=mock_response)
         MockLLMService.return_value = mock_instance

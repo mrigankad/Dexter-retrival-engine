@@ -7,7 +7,7 @@
 
 import { parseSSEBuffer, safeParseJSON } from './streamParser';
 import { useAuthStore } from '@/stores/authStore';
-import type { Source, StreamHandlers } from '@/types';
+import type { DoneEventData, Evidence, ProgressEventData, Source, StreamHandlers } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -111,6 +111,38 @@ function dispatchEvent(
             handlers.onToken(data);
             break;
 
+        case 'answer_delta': {
+            const delta = safeParseJSON<{ text: string }>(data);
+            if (delta && typeof delta.text === 'string') {
+                handlers.onToken(delta.text);
+            }
+            break;
+        }
+
+        case 'progress': {
+            const progress = safeParseJSON<ProgressEventData>(data);
+            if (progress && progress.stage) {
+                handlers.onProgress?.(progress);
+            }
+            break;
+        }
+
+        case 'evidence': {
+            const evidence = safeParseJSON<Evidence[]>(data);
+            if (evidence && Array.isArray(evidence)) {
+                handlers.onEvidence?.(evidence);
+            }
+            break;
+        }
+
+        case 'warning': {
+            const warning = safeParseJSON<{ message: string }>(data);
+            if (warning?.message) {
+                handlers.onWarning?.(warning.message);
+            }
+            break;
+        }
+
         case 'sources': {
             const sources = safeParseJSON<Source[]>(data);
             if (sources && Array.isArray(sources)) {
@@ -119,9 +151,14 @@ function dispatchEvent(
             break;
         }
 
-        case 'done':
-            // Don't call handlers.onDone() here — the stream end handles that
+        case 'done': {
+            // Stream end triggers handlers.onDone(); here we only surface the summary payload.
+            const done = safeParseJSON<DoneEventData>(data);
+            if (done && done.answer_id) {
+                handlers.onComplete?.(done);
+            }
             break;
+        }
 
         case 'start':
             handlers.onStart?.(data);
@@ -140,10 +177,7 @@ function dispatchEvent(
         }
 
         default:
-            // Unknown event — try as token fallback
-            if (data && data !== 'complete') {
-                handlers.onToken(data);
-            }
+            // Unknown structured events are ignored rather than rendered as text.
             break;
     }
 }

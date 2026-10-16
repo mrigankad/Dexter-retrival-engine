@@ -1,63 +1,26 @@
 # ============================================
-# NVIDIA NIM RAG Backend - API Dockerfile
-# Multi-stage build for optimized production image
+# Dexter Retrieval Engine - API image
 # ============================================
-
-# Stage 1: Builder
-FROM python:3.11-slim as builder
-
+FROM python:3.12-slim AS builder
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential curl && rm -rf /var/lib/apt/lists/*
+COPY backend/requirements.txt backend/requirements-optional.txt ./
+ARG INSTALL_OPTIONAL=false
+RUN pip install --no-cache-dir -r requirements.txt \
+ && if [ "$INSTALL_OPTIONAL" = "true" ]; then pip install --no-cache-dir -r requirements-optional.txt; fi
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install dependencies
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Stage 2: Production
-FROM python:3.11-slim as production
-
+FROM python:3.12-slim AS production
 WORKDIR /app
-
-# Create non-root user for security
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser \
+ && apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Copy application code
 COPY backend/ .
-
-# Create uploads directory
-RUN mkdir -p /app/uploads && chown -R appuser:appgroup /app
-
-# Switch to non-root user
+COPY evals/ ./evals/
+RUN mkdir -p /app/uploads /app/data && chown -R appuser:appgroup /app
 USER appuser
-
-# Expose port
 EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Run with Gunicorn + Uvicorn workers
-CMD ["gunicorn", "main:app", \
-    "--bind", "0.0.0.0:8000", \
-    "--workers", "4", \
-    "--worker-class", "uvicorn.workers.UvicornWorker", \
-    "--timeout", "120", \
-    "--keep-alive", "5", \
-    "--access-logfile", "-", \
-    "--error-logfile", "-", \
-    "--capture-output"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 CMD curl -f http://localhost:8000/health/live || exit 1
+CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:8000", "--workers", "2", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", "--timeout", "180", "--keep-alive", "5", \
+     "--access-logfile", "-", "--error-logfile", "-"]

@@ -77,16 +77,10 @@ class SearchAgent(Agent):
         start_time = time.time()
 
         try:
-            # Import locally to avoid circular dependencies at module load
-            from src.services.retrieval.retrieval_service import RetrievalService
+            # Import locally so tests can patch the service and to avoid import cycles
+            from src.services.retrieval_service import RetrievalService
 
-            retrieval_svc = RetrievalService()
-
-            # Execute retrieval using existing service
-            results = await retrieval_svc.retrieve(
-                query=query,
-                top_k=top_k
-            )
+            results = await RetrievalService().retrieve(query=query, top_k=top_k)
 
             duration = time.time() - start_time
 

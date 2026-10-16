@@ -230,7 +230,7 @@ export const ChatMessage = memo(function ChatMessage({
                 ) : (
                     <div className="markdown-content">
                         {/* Thinking state — waiting for first token */}
-                        {isThinking && <ThinkingIndicator />}
+                        {isThinking && <ThinkingIndicator label={message.stage?.label} />}
 
                         {/* Reasoning Block for Thinking Models */}
                         {reasoningContent && (
@@ -269,6 +269,36 @@ export const ChatMessage = memo(function ChatMessage({
                                     />
                                 </AnimatePresence>
                             </>
+                        )}
+
+                        {/* Answer confidence + route (from the engine's done/metadata events) */}
+                        {isDone && !isUser && message.confidence && (
+                            <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-medium">
+                                <span
+                                    className={
+                                        'px-2 py-0.5 rounded-full border ' +
+                                        (message.confidence === 'high'
+                                            ? 'border-green-500/40 text-green-400 bg-green-500/10'
+                                            : message.confidence === 'medium'
+                                                ? 'border-amber-500/40 text-amber-400 bg-amber-500/10'
+                                                : 'border-red-500/40 text-red-400 bg-red-500/10')
+                                    }
+                                    title={message.trace_id ? `trace ${message.trace_id}` : undefined}
+                                >
+                                    {message.confidence.toUpperCase()} CONFIDENCE
+                                </span>
+                                {message.intent && (
+                                    <span className="px-2 py-0.5 rounded-full border border-dark-600 text-dark-300">
+                                        {message.intent.toLowerCase()}
+                                    </span>
+                                )}
+                                {typeof message.latency_ms === 'number' && (
+                                    <span className="text-dark-500">{(message.latency_ms / 1000).toFixed(1)}s</span>
+                                )}
+                                {message.warnings?.map((w, i) => (
+                                    <span key={i} className="text-amber-500/80">{w}</span>
+                                ))}
+                            </div>
                         )}
 
                         {/* Evaluation Badges */}

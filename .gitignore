@@ -103,3 +103,10 @@ token.txt
 /test_*.py
 /ingest_test.py
 generated_reports_test/
+
+# Engine data
+.pytest_data/
+backend/data/
+data/
+evals/reports/
+backend/uploads/

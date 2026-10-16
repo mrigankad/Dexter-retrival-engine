@@ -11,7 +11,7 @@
  */
 
 import { create } from 'zustand';
-import type { Message, Source, MessageStatus } from '@/types';
+import type { Message, Source, MessageStatus, ProgressEventData, Evidence } from '@/types';
 import { streamChat } from '@/api/chatStream';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -86,6 +86,8 @@ interface ChatState {
     // Conversation management
     clearMessages: () => void;
     addMetadata: (id: string, metadata: Record<string, any>) => void;
+    setStage: (id: string, stage: ProgressEventData) => void;
+    addEvidence: (id: string, evidence: Evidence[]) => void;
 }
 
 // ── Store Implementation ────────────────────────────────────
@@ -273,6 +275,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     if (data.evaluation) {
                         get().addMetadata(assistantId, { evaluation: data.evaluation });
                     }
+                    get().addMetadata(assistantId, {
+                        intent: data.intent,
+                        confidence: data.confidence,
+                        trace_id: data.trace_id,
+                    });
+                },
+                onProgress: (stage) => {
+                    get().setStage(assistantId, stage);
+                },
+                onEvidence: (evidence) => {
+                    get().addEvidence(assistantId, evidence);
+                },
+                onWarning: (message) => {
+                    get().addMetadata(assistantId, { warning: message });
+                },
+                onComplete: (done) => {
+                    get().addMetadata(assistantId, {
+                        confidence: done.confidence,
+                        trace_id: done.trace_id || undefined,
+                        latency_ms: done.latency_ms,
+                        citations: done.citations,
+                    });
                 },
             }
         );
@@ -288,9 +312,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         ...msg,
                         backend_id: metadata.backend_id || msg.backend_id,
                         evaluation: metadata.evaluation || msg.evaluation,
+                        intent: metadata.intent || msg.intent,
+                        confidence: metadata.confidence || msg.confidence,
+                        trace_id: metadata.trace_id || msg.trace_id,
+                        latency_ms: metadata.latency_ms ?? msg.latency_ms,
+                        citations: metadata.citations || msg.citations,
+                        warnings: metadata.warning ? [...(msg.warnings || []), metadata.warning] : msg.warnings,
                     }
                     : msg
             ),
+        }));
+    },
+
+    setStage: (id: string, stage: ProgressEventData) => {
+        set((state) => ({
+            messages: state.messages.map((msg) => (msg.id === id ? { ...msg, stage } : msg)),
+        }));
+    },
+
+    addEvidence: (id: string, evidence: Evidence[]) => {
+        set((state) => ({
+            messages: state.messages.map((msg) => (msg.id === id ? { ...msg, evidence } : msg)),
         }));
     },
 

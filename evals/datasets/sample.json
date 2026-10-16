@@ -1,0 +1,8 @@
+[
+  {"question": "What is the hotel limit per night in a Tier 1 city?", "relevant": ["policy.md"], "expected_substrings": ["220"], "type": "lookup"},
+  {"question": "How many days do employees have to submit expense claims?", "relevant": ["policy.md"], "expected_substrings": ["30 days"], "type": "lookup"},
+  {"question": "Which expenses are not reimbursable?", "relevant": ["policy.md"], "expected_substrings": ["Alcohol"], "type": "aggregation"},
+  {"question": "Compare the hotel limits for Tier 1 cities and other cities", "relevant": ["policy.md"], "expected_substrings": ["220", "150"], "type": "comparative"},
+  {"question": "How much annual leave do full-time employees get?", "relevant": ["handbook.md"], "expected_substrings": ["24 days"], "type": "lookup"},
+  {"question": "How many days per week can employees work remotely?", "relevant": ["handbook.md"], "expected_substrings": ["three days"], "type": "lookup"}
+]
